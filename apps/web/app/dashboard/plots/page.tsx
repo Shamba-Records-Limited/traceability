@@ -54,12 +54,20 @@ export default async function PlotsPage() {
             2020 cut-off.
           </p>
         </div>
-        <Link
-          href="/dashboard/plots/new"
-          className="inline-flex h-10 shrink-0 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
-        >
-          Register plot
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/dashboard/plots/import"
+            className="inline-flex h-10 items-center rounded-md border border-soil-300 bg-white px-4 text-sm font-medium text-soil-900 shadow-sm transition-colors hover:bg-soil-100"
+          >
+            Bulk import
+          </Link>
+          <Link
+            href="/dashboard/plots/new"
+            className="inline-flex h-10 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
+          >
+            Register plot
+          </Link>
+        </div>
       </header>
 
       {plots.length === 0 ? (
@@ -102,7 +110,6 @@ export default async function PlotsPage() {
                         className="inline-flex items-center gap-1 rounded-full bg-leaf-50 px-2 py-0.5 font-medium text-leaf-700 hover:bg-leaf-100"
                       >
                         Committed to {plot.onChainTopicId}
-                        <span aria-hidden>↗</span>
                       </a>
                     </p>
                   ) : (

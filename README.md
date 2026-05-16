@@ -31,11 +31,11 @@ Shamba Traceability provides the open, blockchain-anchored substrate operators n
 
 ## What's in the box
 
-- **Plot registration** with WGS 84 polygons (or points for plots ≤ 4 ha), area validation, and on-chain commitment.
+- **Plot registration** with WGS 84 polygons (or points for plots <= 4 ha), area validation, and on-chain commitment.
 - **Pluggable deforestation checks** against the 2020 cut-off, with Global Forest Watch as the default provider.
 - **Batch tokenization** as Hedera Token Service (HTS) NFTs, with full split / merge semantics.
 - **Tamper-evident event log** on Hedera Consensus Service (HCS) — one topic per batch, per-event commitment hashes.
-- **Chain-of-custody handoffs** between farm → cooperative → processor → exporter → EU importer, with optional on-chain escrow.
+- **Chain-of-custody handoffs** between farm -> cooperative -> processor -> exporter -> EU importer, with optional on-chain escrow.
 - **Decentralised identity** via `did:hedera` and W3C Verifiable Credentials for actors and certifications.
 - **EUDR Due Diligence Statement** generation (JSON + PDF) and a configurable TRACES NT submission adapter.
 - **Consumer-facing QR pages** linking to public proof on Hashscan.

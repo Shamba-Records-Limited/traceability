@@ -5,7 +5,7 @@ import { z } from 'zod';
  * geolocation requirement uses (Article 9(1)(d) of Regulation 2023/1115).
  *
  * Coordinates are always `[longitude, latitude]` in decimal degrees, WGS 84.
- * Plots ≤ 4 ha may be represented as a Point; plots > 4 ha must be a Polygon.
+ * Plots <= 4 ha may be represented as a Point; plots > 4 ha must be a Polygon.
  */
 
 const longitudeSchema = z.number().gte(-180).lte(180);
