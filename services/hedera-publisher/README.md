@@ -80,7 +80,13 @@ go run ./cmd/publisher
 
 ## Integration tests
 
-Tests in `internal/hedera/*_integration_test.go` are skipped unless `HEDERA_INTEGRATION=1` and operator credentials are set:
+Tests in `internal/hedera/*_integration_test.go` are skipped unless **all four** of the following are set (the same set `config.Load()` requires for real mode):
+
+- `HEDERA_INTEGRATION=1`
+- `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_PRIVATE_KEY`
+- `HEDERA_TREASURY_ID` and `HEDERA_TREASURY_PRIVATE_KEY`
+
+When any one of those is missing the tests skip gracefully, so the default `go test ./...` run on a developer machine stays green without testnet access.
 
 ```bash
 HEDERA_INTEGRATION=1 \
