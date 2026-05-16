@@ -36,6 +36,8 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 - `apps/web/lib/hedera-publisher.ts`: HTTP client for `services/hedera-publisher` that commits canonical event payloads to HCS. Fails soft — on network / timeout / non-2xx it returns `null`, logs a warning, and lets the caller treat the absence of a commitment as deferred work (a reconciler retries later). Configurable via `HEDERA_PUBLISHER_URL` and `HEDERA_PUBLISHER_TIMEOUT_MS`.
 - `apps/web/lib/plot.ts`: `registerPlot` now commits the `plot_attested` event to HCS after the DB transaction. On success, backfills `events.on_chain_topic_id`, `sequence_number`, `consensus_timestamp`, `transaction_id` and `plots.on_chain_commitment_topic_id`. Failures stay non-fatal: the plot persists with `on_chain_*` null and the UI surfaces "pending HCS commit".
 - `apps/web` `/dashboard/plots`: each plot now shows either a Hashscan link to its HCS topic (when committed) or a "Pending HCS commit" pill (when the publisher was unreachable / mock-skipped).
+- `apps/web/lib/did-issuer.ts`: HTTP client for `services/did-issuer` with the same soft-failure contract as the publisher client (timeout, non-2xx, malformed body all return `null`). Configurable via `HEDERA_DID_ISSUER_URL` and `HEDERA_DID_ISSUER_TIMEOUT_MS`.
+- `apps/web/lib/actor.ts`: `createActorForUser` now calls the did-issuer right after the create transaction and rotates the placeholder DID to the minted `did:hedera:<network>:<topicId>`. On issuer failure the placeholder is left in place; the dashboard's existing "Placeholder identifier" notice surfaces the state, and a background reconciler remains future work.
 
 ### Changed
 
