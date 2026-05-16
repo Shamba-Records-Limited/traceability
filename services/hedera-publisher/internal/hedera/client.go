@@ -10,7 +10,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"log/slog"
 	"strconv"
 	"sync/atomic"
@@ -67,8 +66,7 @@ func NewClient(cfg *config.Config, logger *slog.Logger) (Client, error) {
 		logger.Warn("hedera client running in mock mode; no real network calls will be made")
 		return newMockClient(), nil
 	}
-	// Real SDK-backed client will be wired in a follow-up PR.
-	return nil, fmt.Errorf("real hedera client not yet implemented in this skeleton; remove HEDERA_OPERATOR_ID to use mock mode")
+	return newSDKClient(cfg, logger)
 }
 
 // --- mock client ----------------------------------------------------------
