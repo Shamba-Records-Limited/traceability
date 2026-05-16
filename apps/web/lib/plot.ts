@@ -16,6 +16,7 @@ import {
 
 import { db } from './db';
 import { getDeforestationProvider } from './deforestation';
+import { publishEvent } from './hedera-publisher';
 
 const { plots, deforestationChecks, events, actors } = schema;
 
@@ -102,25 +103,34 @@ export interface RegisteredPlot {
   deforestationDetected: boolean;
   eventId: string;
   eventHash: string;
+  /**
+   * Hedera Consensus Service topic the `plot_attested` event was committed
+   * to, or `null` when the publisher was unreachable / mock-mode skipped.
+   * The reconciler retries `null` rows on a schedule.
+   */
+  onChainTopicId: string | null;
 }
 
 /**
  * EUDR plot registration entry point. Validates the input, runs the
- * configured deforestation provider, and persists three rows in a single
- * transaction:
+ * configured deforestation provider, persists three rows in a single
+ * transaction, and then commits the event to HCS via the publisher
+ * service.
  *
  *   1. `plots` — the plot itself with PostGIS geography (SRID 4326).
  *   2. `deforestation_checks` — the provider's result, including its raw
  *      response for audit-trail reproducibility.
  *   3. `events` — a `plot_attested` event row carrying the canonical
- *      payload hash that the publisher service eventually commits to HCS.
- *      The on-chain reconciliation (topic id + sequence number + consensus
- *      timestamp) is filled in by a follow-up PR that wires the publisher
- *      HTTP client; until then `events.on_chain_*` columns stay null and
- *      a background reconciler closes the gap.
+ *      payload hash that gets committed on-chain immediately afterwards.
  *
- * Returns the new plot's id along with the event id and its hash so the
- * caller can show the user immediate confirmation.
+ * The HCS publish runs **after** the DB transaction commits so a slow or
+ * unreachable publisher does not hold a database connection. On
+ * publisher failure (network error, non-2xx, mock skip) the `events`
+ * and `plots` rows persist with `on_chain_*` columns null, and a
+ * background reconciler retries the publish on a schedule.
+ *
+ * Returns the new plot's id along with the event id, its hash, and the
+ * resulting on-chain topic id (or null if the publish was deferred).
  */
 export async function registerPlot(input: RegisterPlotInput): Promise<RegisteredPlot> {
   const issues: { path: string; message: string }[] = [];
@@ -189,95 +199,128 @@ export async function registerPlot(input: RegisterPlotInput): Promise<Registered
 
   const eventId = randomUUID();
 
-  return db.transaction(async (tx) => {
-    const [plotRow] = await tx
-      .insert(plots)
-      .values({
+  return db
+    .transaction(async (tx) => {
+      const [plotRow] = await tx
+        .insert(plots)
+        .values({
+          ownerActorId: input.ownerActorId,
+          country,
+          subnational: input.subnational?.trim() || null,
+          commodities,
+          geometry: sql`ST_GeomFromText(${wkt}, 4326)::geography`,
+          areaHectares,
+          registeredAt: now,
+        })
+        .returning({ id: plots.id });
+
+      if (!plotRow) {
+        throw new Error('plot insert returned no rows');
+      }
+
+      await tx.insert(deforestationChecks).values({
+        plotId: plotRow.id,
+        provider: checkResult.provider,
+        providerVersion: checkResult.providerVersion ?? null,
+        cutOffDate: new Date(checkResult.cutOffDate),
+        performedAt: new Date(checkResult.performedAt),
+        deforestationDetected: checkResult.deforestationDetected,
+        hectaresLostAfterCutOff: checkResult.hectaresLostAfterCutOff ?? null,
+        evidenceCid: checkResult.evidenceCid ?? null,
+        notes: checkResult.notes ?? null,
+        raw: checkResult.raw ?? {},
+      });
+
+      const eventPayload = {
+        v: 1 as const,
+        type: 'plot_attested' as const,
+        plotId: plotRow.id,
         ownerActorId: input.ownerActorId,
         country,
-        subnational: input.subnational?.trim() || null,
         commodities,
-        geometry: sql`ST_GeomFromText(${wkt}, 4326)::geography`,
         areaHectares,
-        registeredAt: now,
-      })
-      .returning({ id: plots.id });
+        deforestationCheck: {
+          provider: checkResult.provider,
+          deforestationDetected: checkResult.deforestationDetected,
+          cutOffDate: checkResult.cutOffDate,
+          performedAt: checkResult.performedAt,
+        },
+        emittedAt: now.toISOString(),
+      };
+      const canonical = JSON.stringify(eventPayload);
+      const payloadHash = createHash('sha256').update(canonical, 'utf8').digest('hex');
 
-    if (!plotRow) {
-      throw new Error('plot insert returned no rows');
-    }
+      // Every event must attribute to a verifiable actor identity (ADR-0003);
+      // look up the owner's DID so it can be persisted on the event row.
+      const [actorRow] = await tx
+        .select({ did: actors.did })
+        .from(actors)
+        .where(eq(actors.id, input.ownerActorId))
+        .limit(1);
+      if (!actorRow) {
+        throw new Error(`actor ${input.ownerActorId} not found while emitting plot_attested event`);
+      }
 
-    await tx.insert(deforestationChecks).values({
-      plotId: plotRow.id,
-      provider: checkResult.provider,
-      providerVersion: checkResult.providerVersion ?? null,
-      cutOffDate: new Date(checkResult.cutOffDate),
-      performedAt: new Date(checkResult.performedAt),
-      deforestationDetected: checkResult.deforestationDetected,
-      hectaresLostAfterCutOff: checkResult.hectaresLostAfterCutOff ?? null,
-      evidenceCid: checkResult.evidenceCid ?? null,
-      notes: checkResult.notes ?? null,
-      raw: checkResult.raw ?? {},
-    });
+      await tx.insert(events).values({
+        id: eventId,
+        plotId: plotRow.id,
+        type: 'plot_attested',
+        emittedAt: now,
+        emittedByDid: actorRow.did,
+        payload: eventPayload,
+        payloadHash,
+        // on_chain_* columns are backfilled by the post-commit publish below.
+      });
 
-    const eventPayload = {
-      v: 1 as const,
-      type: 'plot_attested' as const,
-      plotId: plotRow.id,
-      ownerActorId: input.ownerActorId,
-      country,
-      commodities,
-      areaHectares,
-      deforestationCheck: {
-        provider: checkResult.provider,
+      return {
+        plotRowId: plotRow.id,
+        eventPayload,
+        payloadHash,
+      };
+    })
+    .then(async ({ plotRowId, eventPayload, payloadHash }) => {
+      // Post-commit on-chain publish. Done outside the transaction so a slow
+      // or unreachable publisher does not hold a database connection. On
+      // failure, publishEvent returns null and we leave the on_chain_*
+      // columns null for the reconciler to backfill later — the plot itself
+      // is already persisted.
+      const publish = await publishEvent('', eventPayload);
+      if (publish) {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(events)
+            .set({
+              onChainTopicId: publish.topicId,
+              onChainSequenceNumber: publish.sequenceNumber,
+              onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
+              onChainTransactionId: publish.transactionId,
+            })
+            .where(eq(events.id, eventId));
+          await tx
+            .update(plots)
+            .set({ onChainCommitmentTopicId: publish.topicId })
+            .where(eq(plots.id, plotRowId));
+        });
+      }
+
+      return {
+        id: plotRowId,
+        ownerActorId: input.ownerActorId,
+        country,
+        commodities,
+        areaHectares,
         deforestationDetected: checkResult.deforestationDetected,
-        cutOffDate: checkResult.cutOffDate,
-        performedAt: checkResult.performedAt,
-      },
-      emittedAt: now.toISOString(),
-    };
-    const canonical = JSON.stringify(eventPayload);
-    const payloadHash = createHash('sha256').update(canonical, 'utf8').digest('hex');
-
-    // Every event must attribute to a verifiable actor identity (ADR-0003);
-    // look up the owner's DID so it can be persisted on the event row.
-    const [actorRow] = await tx
-      .select({ did: actors.did })
-      .from(actors)
-      .where(eq(actors.id, input.ownerActorId))
-      .limit(1);
-    if (!actorRow) {
-      throw new Error(`actor ${input.ownerActorId} not found while emitting plot_attested event`);
-    }
-
-    await tx.insert(events).values({
-      id: eventId,
-      plotId: plotRow.id,
-      type: 'plot_attested',
-      emittedAt: now,
-      emittedByDid: actorRow.did,
-      payload: eventPayload,
-      payloadHash,
-      // on_chain_* columns stay null until the publisher service commits
-      // this event to HCS — wired up in feat/web-publisher-client.
+        eventId,
+        eventHash: payloadHash,
+        onChainTopicId: publish?.topicId ?? null,
+      } satisfies RegisteredPlot;
     });
-
-    return {
-      id: plotRow.id,
-      ownerActorId: input.ownerActorId,
-      country,
-      commodities,
-      areaHectares,
-      deforestationDetected: checkResult.deforestationDetected,
-      eventId,
-      eventHash: payloadHash,
-    };
-  });
 }
 
 /**
  * List plots owned by a given actor, newest registration first. Used by the
- * `/dashboard/plots` page.
+ * `/dashboard/plots` page. `onChainTopicId` is non-null once the publisher
+ * has committed the plot's `plot_attested` event to HCS.
  */
 export async function listPlotsForActor(ownerActorId: string): Promise<
   Array<{
@@ -287,6 +330,7 @@ export async function listPlotsForActor(ownerActorId: string): Promise<
     commodities: string[];
     areaHectares: number;
     registeredAt: Date;
+    onChainTopicId: string | null;
   }>
 > {
   return db
@@ -297,6 +341,7 @@ export async function listPlotsForActor(ownerActorId: string): Promise<
       commodities: plots.commodities,
       areaHectares: plots.areaHectares,
       registeredAt: plots.registeredAt,
+      onChainTopicId: plots.onChainCommitmentTopicId,
     })
     .from(plots)
     .where(eq(plots.ownerActorId, ownerActorId))
