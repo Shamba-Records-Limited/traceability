@@ -9,14 +9,6 @@ import type { PlotGeometry } from '@shamba/shared-types';
 export const EUDR_CUT_OFF = '2020-12-31T23:59:59.999Z';
 
 /**
- * The first calendar year whose tree cover loss disqualifies a plot under
- * the EUDR cut-off above. Hansen Global Forest Change quantises loss to
- * full calendar years, so "anything detected on or after 2020-12-31" maps
- * to "any tree-cover-loss record with year >= 2021".
- */
-const EUDR_FIRST_DISQUALIFYING_LOSS_YEAR = 2021;
-
-/**
  * Outcome of a deforestation check. Mirrors the canonical Zod
  * `deforestationCheckSchema` in `@shamba/shared-types/plot` so consumers can
  * persist the value directly. We don't import that schema here only because
@@ -158,35 +150,81 @@ function readGfwConfig(env: NodeJS.ProcessEnv = process.env): GfwProviderConfig 
   }
   const baseUrl = (env.GFW_BASE_URL ?? DEFAULT_GFW_BASE_URL).trim().replace(/\/$/, '');
   const datasetVersion = (env.GFW_DATASET_VERSION ?? DEFAULT_GFW_DATASET_VERSION).trim();
-  const canopyThresholdPct = (() => {
-    const raw = env.GFW_CANOPY_THRESHOLD_PCT;
-    if (!raw) return DEFAULT_GFW_CANOPY_THRESHOLD_PCT;
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
-      return DEFAULT_GFW_CANOPY_THRESHOLD_PCT;
-    }
-    return parsed;
-  })();
-  const timeoutMs = (() => {
-    const raw = env.GFW_REQUEST_TIMEOUT_MS;
-    if (!raw) return DEFAULT_GFW_TIMEOUT_MS;
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isNaN(parsed) || parsed <= 0) return DEFAULT_GFW_TIMEOUT_MS;
-    return parsed;
-  })();
+  // Compliance-critical config: if an env var is set we trust the operator
+  // meant to override the default, so an unparseable value is a bug, not a
+  // hint to fall back silently. Throw at construction time so a typo like
+  // `GFW_CANOPY_THRESHOLD_PCT=fifty` surfaces immediately instead of
+  // quietly changing the verdict policy.
+  const canopyThresholdPct = parseEnvInt(
+    env.GFW_CANOPY_THRESHOLD_PCT,
+    DEFAULT_GFW_CANOPY_THRESHOLD_PCT,
+    'GFW_CANOPY_THRESHOLD_PCT',
+    { min: 0, max: 100 },
+  );
+  const timeoutMs = parseEnvInt(
+    env.GFW_REQUEST_TIMEOUT_MS,
+    DEFAULT_GFW_TIMEOUT_MS,
+    'GFW_REQUEST_TIMEOUT_MS',
+    {
+      min: 1,
+    },
+  );
   return { apiKey, baseUrl, datasetVersion, canopyThresholdPct, timeoutMs };
 }
 
-function buildGfwSql(canopyThresholdPct: number): string {
+function parseEnvInt(
+  raw: string | undefined,
+  fallback: number,
+  varName: string,
+  bounds: { min: number; max?: number },
+): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (
+    Number.isNaN(parsed) ||
+    parsed < bounds.min ||
+    (bounds.max !== undefined && parsed > bounds.max)
+  ) {
+    const range =
+      bounds.max === undefined ? `>= ${bounds.min}` : `between ${bounds.min} and ${bounds.max}`;
+    throw new DeforestationProviderUnavailableError(
+      'gfw',
+      `${varName}=${JSON.stringify(raw)} is not a valid integer ${range}.`,
+    );
+  }
+  return parsed;
+}
+
+/**
+ * The first calendar year of tree cover loss that disqualifies a plot for a
+ * given ISO-8601 cut-off date. Hansen Global Forest Change quantises loss to
+ * full calendar years, so a cut-off of `2020-12-31T23:59:59.999Z` maps to
+ * year >= 2021. We derive this from the cut-off rather than hard-coding 2021
+ * so that any future change to `EUDR_CUT_OFF` (or a caller-supplied override)
+ * flows through automatically.
+ */
+function firstDisqualifyingLossYear(cutOffDate: string): number {
+  const parsed = new Date(cutOffDate);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new DeforestationProviderUnavailableError(
+      'gfw',
+      `cutOffDate=${JSON.stringify(cutOffDate)} is not a valid ISO-8601 instant`,
+    );
+  }
+  return parsed.getUTCFullYear() + 1;
+}
+
+function buildGfwSql(canopyThresholdPct: number, firstDisqualifyingYear: number): string {
   // Field naming matches the GFW Data API's `umd_tree_cover_loss` schema:
   // `umd_tree_cover_loss__year` is the integer loss year, `area__ha` is
-  // the loss area in hectares. We filter by year above the EUDR cut-off
-  // and by the canopy-density threshold; aggregating by year lets us
-  // report per-year breakdown in the audit-trail `raw` payload.
+  // the loss area in hectares. NO SQL aliases here — the parser reads the
+  // dataset's native column names so an alias drift between the SQL and
+  // the parser would cause every real GFW request to fail-closed without
+  // the tests noticing.
   return [
-    'SELECT umd_tree_cover_loss__year AS year, SUM(area__ha) AS area_hectares',
+    'SELECT umd_tree_cover_loss__year, SUM(area__ha) AS area__ha',
     'FROM data',
-    `WHERE umd_tree_cover_loss__year >= ${EUDR_FIRST_DISQUALIFYING_LOSS_YEAR}`,
+    `WHERE umd_tree_cover_loss__year >= ${firstDisqualifyingYear}`,
     `AND umd_tree_cover_density_2000__threshold = ${canopyThresholdPct}`,
     'GROUP BY umd_tree_cover_loss__year',
     'ORDER BY umd_tree_cover_loss__year',
@@ -239,7 +277,9 @@ export class GfwDeforestationProvider implements DeforestationProvider {
 
   async checkPlot(input: CheckPlotInput): Promise<DeforestationCheckResult> {
     const url = `${this.config.baseUrl}/dataset/umd_tree_cover_loss/${encodeURIComponent(this.config.datasetVersion)}/query/json`;
-    const sql = buildGfwSql(this.config.canopyThresholdPct);
+    const cutOffDate = input.cutOffDate ?? EUDR_CUT_OFF;
+    const firstDisqualifyingYear = firstDisqualifyingLossYear(cutOffDate);
+    const sql = buildGfwSql(this.config.canopyThresholdPct, firstDisqualifyingYear);
     const body = JSON.stringify({ sql, geometry: input.geometry });
 
     const controller = new AbortController();
@@ -294,7 +334,6 @@ export class GfwDeforestationProvider implements DeforestationProvider {
 
     const { rows, hectaresLost } = parseGfwResponse(raw);
     const performedAt = new Date().toISOString();
-    const cutOffDate = input.cutOffDate ?? EUDR_CUT_OFF;
 
     // Floor the float at 6 decimal places of hectare precision; GFW
     // returns sub-cm² noise that would otherwise pollute the audit row.
@@ -309,13 +348,14 @@ export class GfwDeforestationProvider implements DeforestationProvider {
       hectaresLostAfterCutOff: hectaresLostRounded,
       notes:
         hectaresLostRounded > 0
-          ? `Hansen Global Forest Change reports ${hectaresLostRounded.toFixed(4)} ha of tree cover loss inside this plot since ${EUDR_FIRST_DISQUALIFYING_LOSS_YEAR}-01-01 at the ${this.config.canopyThresholdPct}% canopy threshold.`
-          : `No tree cover loss detected inside this plot since ${EUDR_FIRST_DISQUALIFYING_LOSS_YEAR}-01-01 at the ${this.config.canopyThresholdPct}% canopy threshold (Hansen Global Forest Change ${this.config.datasetVersion}).`,
+          ? `Hansen Global Forest Change reports ${hectaresLostRounded.toFixed(4)} ha of tree cover loss inside this plot since ${firstDisqualifyingYear}-01-01 at the ${this.config.canopyThresholdPct}% canopy threshold.`
+          : `No tree cover loss detected inside this plot since ${firstDisqualifyingYear}-01-01 at the ${this.config.canopyThresholdPct}% canopy threshold (Hansen Global Forest Change ${this.config.datasetVersion}).`,
       raw: {
         dataset: 'umd_tree_cover_loss',
         datasetVersion: this.config.datasetVersion,
         canopyThresholdPct: this.config.canopyThresholdPct,
-        firstDisqualifyingYear: EUDR_FIRST_DISQUALIFYING_LOSS_YEAR,
+        cutOffDate,
+        firstDisqualifyingYear,
         rows,
         country: input.country,
       },

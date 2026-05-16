@@ -89,6 +89,25 @@ describe('GfwDeforestationProvider', () => {
     expect(typeof body.sql).toBe('string');
     expect(body.sql).toMatch(/umd_tree_cover_loss__year >= 2021/);
     expect(body.sql).toMatch(/umd_tree_cover_density_2000__threshold = 30/);
+    // Guardrail against the SQL drifting from the dataset's native column
+    // names — the parser only reads `area__ha` so any alias here would
+    // silently fail-closed against real GFW responses.
+    expect(body.sql).not.toMatch(/\bAS year\b/i);
+    expect(body.sql).not.toMatch(/\bAS area_hectares\b/i);
+  });
+
+  it('derives the disqualifying year from a caller-supplied cutOffDate', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [] }));
+    const provider = buildProvider();
+    await provider.checkPlot({
+      geometry: POLYGON,
+      country: 'KE',
+      cutOffDate: '2018-12-31T23:59:59.999Z',
+    });
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(call[1].body as string);
+    // 2018 cut-off => first disqualifying year is 2019.
+    expect(body.sql).toMatch(/umd_tree_cover_loss__year >= 2019/);
   });
 
   it('treats an empty data array as "no deforestation detected"', async () => {
@@ -219,6 +238,27 @@ describe('getDeforestationProvider', () => {
   it('throws when DEFORESTATION_PROVIDER=gfw and GFW_API_KEY is missing', () => {
     process.env.DEFORESTATION_PROVIDER = 'gfw';
     delete process.env.GFW_API_KEY;
+    expect(() => getDeforestationProvider()).toThrow(DeforestationProviderUnavailableError);
+  });
+
+  it('throws when GFW_CANOPY_THRESHOLD_PCT is set to a non-integer', () => {
+    process.env.DEFORESTATION_PROVIDER = 'gfw';
+    process.env.GFW_API_KEY = 'test-key-abc123';
+    process.env.GFW_CANOPY_THRESHOLD_PCT = 'fifty';
+    expect(() => getDeforestationProvider()).toThrow(DeforestationProviderUnavailableError);
+  });
+
+  it('throws when GFW_CANOPY_THRESHOLD_PCT is out of the 0..100 range', () => {
+    process.env.DEFORESTATION_PROVIDER = 'gfw';
+    process.env.GFW_API_KEY = 'test-key-abc123';
+    process.env.GFW_CANOPY_THRESHOLD_PCT = '150';
+    expect(() => getDeforestationProvider()).toThrow(DeforestationProviderUnavailableError);
+  });
+
+  it('throws when GFW_REQUEST_TIMEOUT_MS is set to zero', () => {
+    process.env.DEFORESTATION_PROVIDER = 'gfw';
+    process.env.GFW_API_KEY = 'test-key-abc123';
+    process.env.GFW_REQUEST_TIMEOUT_MS = '0';
     expect(() => getDeforestationProvider()).toThrow(DeforestationProviderUnavailableError);
   });
 
