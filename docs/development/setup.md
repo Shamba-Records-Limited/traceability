@@ -60,6 +60,25 @@ That's the floor: Postgres is at `postgres://shamba:shamba@localhost:5432/shamba
 
 After running `pnpm db:generate`, **commit the generated SQL** alongside your schema change.
 
+## Authentication (Auth.js + magic-link)
+
+The web app signs users in via [Auth.js v5](https://authjs.dev) using an email magic-link flow (see [ADR-0006](../adr/0006-authjs-over-clerk.md) for the rationale). Locally, Mailpit catches every outbound email so you don't need a real SMTP service.
+
+1. Generate a session secret and put it in `.env.local`:
+
+   ```bash
+   openssl rand -base64 32
+   # paste the result as AUTH_SECRET
+   ```
+
+2. Confirm the SMTP defaults in `.env.example` match the Mailpit container (`localhost:1025`).
+3. Bring up the stack and migrate the database (`pnpm db:up && pnpm db:migrate`).
+4. Start the web app: `pnpm --filter @shamba/web dev`.
+5. Visit <http://localhost:3000/dashboard> — you'll be redirected to `/sign-in`.
+6. Enter any email address and submit; open <http://localhost:8025> to read the magic-link, click it, and you'll land back on the dashboard.
+
+Mailpit captures every send and never delivers anything externally — safe for development.
+
 ## Hedera testnet
 
 For real-mode work against `services/hedera-publisher`:

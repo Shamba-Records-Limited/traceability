@@ -25,6 +25,9 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 - `infra/docker/docker-compose.yml`: local dev stack — Postgres 16 + PostGIS 3.4, Redis 7, IPFS Kubo. Health-checked. Exposed on the standard ports.
 - Root `package.json` aliases for the database workflow: `pnpm db:up`, `db:down`, `db:logs`, `db:reset`, `db:migrate`, `db:generate`, `db:studio`.
 - `docs/development/setup.md`: end-to-end quick-start covering clone, install, docker compose, migrations, Hedera testnet credentials, and common troubleshooting.
+- `apps/web`: Auth.js v5 wired with the Drizzle adapter against `@shamba/db`. Email magic-link sign-in via Nodemailer (defaulted at the local Mailpit container), middleware protecting `/dashboard`, sign-in / check-email / dashboard pages, and a `users.actor_id` link to the `actors` table for downstream onboarding. ADR-0006 records the choice over Clerk.
+- `packages/db`: Auth.js core tables (`users`, `accounts`, `sessions`, `verificationTokens`) and the `users.actor_id` foreign key to `actors`.
+- `infra/docker/docker-compose.yml`: Mailpit container catching outbound SMTP for local Auth.js magic-link development (web UI on :8025, SMTP on :1025).
 
 ### Changed
 

@@ -50,3 +50,4 @@ ADRs are listed by number; check this directory for the canonical, up-to-date li
 - [0003 — Identity via Hedera DID and W3C Verifiable Credentials](./0003-identity-did-vc.md)
 - [0004 — PostGIS for plot geometry and spatial queries](./0004-postgis-for-plot-geometry.md)
 - [0005 — Dual licensing: AGPL-3.0 plus commercial](./0005-dual-licensing.md)
+- [0006 — Auth.js v5 over Clerk for authentication](./0006-authjs-over-clerk.md)
