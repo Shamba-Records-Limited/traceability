@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: shamba-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shamba
+      POSTGRES_USER: shamba
+      POSTGRES_PASSWORD: shamba
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shamba -d shamba"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: shamba-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ipfs:
+    # Optional: only needed for evidence storage flows. Comment out to skip.
+    image: ipfs/kubo:v0.32.1
+    container_name: shamba-ipfs
+    restart: unless-stopped
+    ports:
+      - "4001:4001" # swarm
+      - "5001:5001" # api
+      - "8080:8080" # gateway
+    volumes:
+      - ipfs_data:/data/ipfs
+
+volumes:
+  postgres_data:
+  redis_data:
+  ipfs_data:

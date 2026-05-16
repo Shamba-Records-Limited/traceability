@@ -28,7 +28,14 @@
     "test:ci": "turbo run test:ci",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "db:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
+    "db:reset": "docker compose -f infra/docker/docker-compose.yml down -v",
+    "db:migrate": "pnpm --filter @shamba/db db:migrate",
+    "db:generate": "pnpm --filter @shamba/db db:generate",
+    "db:studio": "pnpm --filter @shamba/db db:studio"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
