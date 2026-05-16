@@ -29,6 +29,7 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 - `apps/web`: onboarding flow at `/onboarding` (role + country + display name + optional subnational). On submit, creates the `actors` row in the same transaction that backfills `users.actor_id`. New users without a profile are routed to onboarding by the dashboard server component; users with a profile see their actor card on the dashboard. Actors are minted with a `did:placeholder:<uuid>` identifier; the upcoming `did-issuer` service rotates it to a real `did:hedera:...` once it lands.
 - `packages/db`: Auth.js core tables (`users`, `accounts`, `sessions`, `verificationTokens`) and the `users.actor_id` foreign key to `actors`.
 - `infra/docker/docker-compose.yml`: Mailpit container catching outbound SMTP for local Auth.js magic-link development (web UI on :8025, SMTP on :1025).
+- `services/did-issuer`: new Go service that mints `did:hedera:<network>:<topicId>` identifiers. Each call creates a dedicated HCS topic and submits an initial W3C DID Core 1.0 document as the topic's first message; subsequent updates ride the same topic. Same mock-vs-real selection rule as `hedera-publisher` (operator credentials present → real mode). `POST /v1/dids/mint` + `/healthz` + `/readyz`. CI Go matrix extended to cover both services.
 
 ### Changed
 

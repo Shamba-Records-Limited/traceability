@@ -85,6 +85,7 @@ jobs:
       matrix:
         service:
           - hedera-publisher
+          - did-issuer
     steps:
       - uses: actions/checkout@v4
 
