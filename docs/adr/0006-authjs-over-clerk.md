@@ -31,7 +31,7 @@ Easier:
 
 - Zero third-party signup required to run the stack locally — contributors can use the `nodemailer` provider against the bundled Mailpit container or any local SMTP server, or the Auth.js dev-only Credentials provider.
 - The whole authentication surface is open-source (`MIT` licensed), so no vendor lock-in or contractual asymmetry against our AGPL-3.0 code.
-- One source of truth at the database layer: Auth.js's `users`, `accounts`, `sessions`, and `verificationTokens` tables live in `@shamba/db` alongside `actors`, with a foreign key from `users.actor_id` → `actors.id` once onboarding picks a role.
+- One source of truth at the database layer: Auth.js's `users`, `accounts`, `sessions`, and `verificationTokens` tables live in `@shamba/db` alongside `actors`, with a foreign key from `users.actor_id` -> `actors.id` once onboarding picks a role.
 - Standard adapter pattern means we can swap providers (passkeys, GitHub OAuth, enterprise SAML) without touching the actor model.
 
 Harder:

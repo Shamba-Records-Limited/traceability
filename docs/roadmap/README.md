@@ -6,11 +6,11 @@ Public-facing roadmap, organised by quarter. Subject to change — submit feedba
 
 - Monorepo scaffolding and OSS governance
 - ADRs locking foundational architecture
-- First end-to-end traceability slice: plot registration → batch tokenization → handoff → DDS export
+- First end-to-end traceability slice: plot registration -> batch tokenization -> handoff -> DDS export
 
 ## Next
 
-- Full chain-of-custody (farm → cooperative → processor → exporter → EU importer) with split/merge semantics
+- Full chain-of-custody (farm -> cooperative -> processor -> exporter -> EU importer) with split/merge semantics
 - Hedera DID + W3C Verifiable Credentials issuance
 - Pluggable deforestation provider with Global Forest Watch as default
 - DDS generator (JSON + PDF) and TRACES NT adapter

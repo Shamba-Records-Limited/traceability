@@ -46,7 +46,7 @@ Files under `src/schema/` deliberately omit the `.js` extension on relative impo
 ## Geometry conventions
 
 - All plot geometries are stored as `geography(*, 4326)` (WGS 84) per EUDR Article 9(1)(d).
-- Polygons (plots > 4 ha) use `geography(POLYGON, 4326)`; points (plots ≤ 4 ha) use `geography(POINT, 4326)`.
+- Polygons (plots > 4 ha) use `geography(POLYGON, 4326)`; points (plots <= 4 ha) use `geography(POINT, 4326)`.
 - A `GIST` index is created on every geometry column.
 
 ## Testing

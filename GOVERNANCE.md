@@ -88,9 +88,9 @@ Most decisions are made by **lazy consensus** on a pull request or issue:
 
 When lazy consensus fails — i.e. an objection is raised and not resolved through discussion — the decision escalates:
 
-1. **Technical disagreement within an area** → resolved by the area's CODEOWNERS by simple majority.
-2. **Architectural / cross-area disagreement** → resolved by a maintainer vote (simple majority of voting maintainers, quorum of three).
-3. **Tie or principled deadlock** → broken by a steward representative, after a written rationale is published on the relevant issue.
+1. **Technical disagreement within an area** -> resolved by the area's CODEOWNERS by simple majority.
+2. **Architectural / cross-area disagreement** -> resolved by a maintainer vote (simple majority of voting maintainers, quorum of three).
+3. **Tie or principled deadlock** -> broken by a steward representative, after a written rationale is published on the relevant issue.
 
 Decisions of architectural significance must be captured in an Architecture Decision Record under [`docs/adr/`](./docs/adr/).
 
