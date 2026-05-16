@@ -26,6 +26,7 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 - Root `package.json` aliases for the database workflow: `pnpm db:up`, `db:down`, `db:logs`, `db:reset`, `db:migrate`, `db:generate`, `db:studio`.
 - `docs/development/setup.md`: end-to-end quick-start covering clone, install, docker compose, migrations, Hedera testnet credentials, and common troubleshooting.
 - `apps/web`: Auth.js v5 wired with the Drizzle adapter against `@shamba/db`. Email magic-link sign-in via Nodemailer (defaulted at the local Mailpit container), middleware protecting `/dashboard`, sign-in / check-email / dashboard pages, and a `users.actor_id` link to the `actors` table for downstream onboarding. ADR-0006 records the choice over Clerk.
+- `apps/web`: onboarding flow at `/onboarding` (role + country + display name + optional subnational). On submit, creates the `actors` row in the same transaction that backfills `users.actor_id`. New users without a profile are routed to onboarding by the dashboard server component; users with a profile see their actor card on the dashboard. Actors are minted with a `did:placeholder:<uuid>` identifier; the upcoming `did-issuer` service rotates it to a real `did:hedera:...` once it lands.
 - `packages/db`: Auth.js core tables (`users`, `accounts`, `sessions`, `verificationTokens`) and the `users.actor_id` foreign key to `actors`.
 - `infra/docker/docker-compose.yml`: Mailpit container catching outbound SMTP for local Auth.js magic-link development (web UI on :8025, SMTP on :1025).
 
