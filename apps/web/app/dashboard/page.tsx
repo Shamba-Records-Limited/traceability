@@ -71,12 +71,20 @@ export default async function DashboardPage() {
         ) : null}
       </section>
 
-      <section className="mt-6 space-y-3 rounded-md border border-soil-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-soil-900">What&rsquo;s next</h2>
-        <p className="text-sm text-soil-700">
-          Plot registration, batch creation, and chain-of-custody handoffs land in upcoming PRs.
-          Once your DID is minted you&rsquo;ll be able to register your first plot here.
-        </p>
+      <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
+        <div>
+          <h2 className="text-lg font-semibold text-soil-900">Plots</h2>
+          <p className="mt-1 text-sm text-soil-700">
+            Register a plot of land you produce on. The deforestation check runs against the EUDR 31
+            December 2020 cut-off.
+          </p>
+        </div>
+        <a
+          href="/dashboard/plots"
+          className="inline-flex h-10 shrink-0 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
+        >
+          Manage plots
+        </a>
       </section>
     </main>
   );
