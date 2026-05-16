@@ -105,8 +105,12 @@ export interface RegisteredPlot {
   eventHash: string;
   /**
    * Hedera Consensus Service topic the `plot_attested` event was committed
-   * to, or `null` when the publisher was unreachable / mock-mode skipped.
-   * The reconciler retries `null` rows on a schedule.
+   * to. `null` when the publisher was unreachable, timed out, returned a
+   * non-2xx, or returned a malformed body. (Mock mode still returns a
+   * topic id — `null` is failure, not mock-skip.) A background reconciler
+   * to retry pending commits is **future work**; today these rows stay
+   * `null` until someone manually re-runs the publish or the reconciler
+   * ships.
    */
   onChainTopicId: string | null;
 }
@@ -125,9 +129,11 @@ export interface RegisteredPlot {
  *
  * The HCS publish runs **after** the DB transaction commits so a slow or
  * unreachable publisher does not hold a database connection. On
- * publisher failure (network error, non-2xx, mock skip) the `events`
- * and `plots` rows persist with `on_chain_*` columns null, and a
- * background reconciler retries the publish on a schedule.
+ * publisher failure (network error, non-2xx, malformed response) the
+ * `events` and `plots` rows persist with `on_chain_*` columns null. A
+ * background reconciler that retries pending publishes is **future
+ * work**; until it ships, pending rows stay pending until manual
+ * intervention.
  *
  * Returns the new plot's id along with the event id, its hash, and the
  * resulting on-chain topic id (or null if the publish was deferred).
@@ -272,35 +278,64 @@ export async function registerPlot(input: RegisterPlotInput): Promise<Registered
         // on_chain_* columns are backfilled by the post-commit publish below.
       });
 
+      // Build the on-chain commitment. Per shared-types/event.ts the HCS
+      // message body is an EventCommitment — a compact struct carrying the
+      // SHA-256 hash of the canonical off-chain payload — NOT the payload
+      // itself. Auditors hash events.payload and compare to the on-chain
+      // payloadHash; events.payload stays off-chain.
+      const eventCommitment = {
+        v: 1 as const,
+        type: 'plot_attested' as const,
+        plotId: plotRow.id,
+        emittedAt: now.toISOString(),
+        emittedByDid: actorRow.did,
+        payloadHash,
+      };
+
       return {
         plotRowId: plotRow.id,
-        eventPayload,
+        eventCommitment,
         payloadHash,
       };
     })
-    .then(async ({ plotRowId, eventPayload, payloadHash }) => {
-      // Post-commit on-chain publish. Done outside the transaction so a slow
-      // or unreachable publisher does not hold a database connection. On
-      // failure, publishEvent returns null and we leave the on_chain_*
-      // columns null for the reconciler to backfill later — the plot itself
-      // is already persisted.
-      const publish = await publishEvent('', eventPayload);
+    .then(async ({ plotRowId, eventCommitment, payloadHash }) => {
+      // Post-commit on-chain publish. Done OUTSIDE the transaction so a
+      // slow or unreachable publisher does not hold a database connection.
+      // On failure publishEvent returns null and we leave the on_chain_*
+      // columns null. There is no automatic reconciler today — pending
+      // rows stay pending until manual intervention or a future PR ships
+      // the reconciler. The plot itself is already persisted regardless.
+      const publish = await publishEvent('', eventCommitment);
       if (publish) {
-        await db.transaction(async (tx) => {
-          await tx
-            .update(events)
-            .set({
-              onChainTopicId: publish.topicId,
-              onChainSequenceNumber: publish.sequenceNumber,
-              onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
-              onChainTransactionId: publish.transactionId,
-            })
-            .where(eq(events.id, eventId));
-          await tx
-            .update(plots)
-            .set({ onChainCommitmentTopicId: publish.topicId })
-            .where(eq(plots.id, plotRowId));
-        });
+        try {
+          await db.transaction(async (tx) => {
+            await tx
+              .update(events)
+              .set({
+                onChainTopicId: publish.topicId,
+                onChainSequenceNumber: publish.sequenceNumber,
+                onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
+                onChainTransactionId: publish.transactionId,
+              })
+              .where(eq(events.id, eventId));
+            await tx
+              .update(plots)
+              .set({ onChainCommitmentTopicId: publish.topicId })
+              .where(eq(plots.id, plotRowId));
+          });
+        } catch (error) {
+          // HCS commit succeeded but the local backfill failed. The plot
+          // and event are already persisted; the user-facing response
+          // still gets the topic id so the dashboard shows "Committed".
+          // The DB row will read as pending until the reconciler closes
+          // the gap. Loud log so this surfaces in production traces.
+          console.error('[plot] HCS commit succeeded but on_chain_* backfill failed', {
+            plotId: plotRowId,
+            eventId,
+            topicId: publish.topicId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
 
       return {

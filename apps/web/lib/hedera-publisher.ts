@@ -1,13 +1,22 @@
 /**
  * HTTP client for the `services/hedera-publisher` Go service. Used by the
- * web app to commit canonical event payloads onto Hedera's HCS topics.
+ * web app to commit on-chain event commitments to Hedera's HCS topics.
  *
- * The client fails soft: when the publisher is unreachable or returns a
- * non-2xx, this module returns `null` and logs a warning rather than
- * throwing. Callers (e.g. `registerPlot`) treat the absence of an on-chain
- * commitment as "pending" — the row persists with `on_chain_*` columns
- * null, and a follow-up reconciler walks those rows on a schedule and
- * retries the publish until the commitment lands.
+ * Per ADR-0002 + `@shamba/shared-types/event` the **on-chain** payload is an
+ * `EventCommitment` carrying the SHA-256 hash of the off-chain canonical
+ * payload (and the actor's DID, topic id, etc.). The full payload lives
+ * off-chain in `events.payload`; only the commitment goes through this
+ * client and lands as the HCS message body. Auditors verify by hashing the
+ * off-chain payload and comparing to the on-chain commitment.
+ *
+ * The client fails soft: when the publisher is unreachable, times out,
+ * returns a non-2xx, or returns a malformed body, this module returns
+ * `null` and logs a warning rather than throwing. Callers (e.g.
+ * `registerPlot`) treat the absence of an on-chain commitment as
+ * "pending" — the row persists with `on_chain_*` columns null. A
+ * background reconciler that retries pending publishes is **not yet
+ * implemented**; pending rows stay pending until manual intervention or
+ * a future PR ships the reconciler.
  *
  * Configurable via:
  *   HEDERA_PUBLISHER_URL  Base URL of the publisher (default http://localhost:8080).
@@ -30,6 +39,10 @@ function publisherTimeout(): number {
 export interface PublishEventResult {
   topicId: string;
   sequenceNumber: bigint;
+  /**
+   * Network consensus timestamp as ISO-8601. Guaranteed parseable by
+   * `Date.parse` — the client rejects malformed strings before returning.
+   */
   consensusTimestamp: string;
   transactionId: string;
 }
@@ -42,13 +55,14 @@ interface PublisherResponse {
 }
 
 /**
- * Submit a canonical event payload to a Hedera Consensus Service topic.
- * If `topicId` is the empty string, the publisher creates a new topic and
- * returns its id alongside the sequence number.
+ * Submit a `EventCommitment` (or any opaque payload) to a Hedera Consensus
+ * Service topic. If `topicId` is the empty string, the publisher creates a
+ * new topic and returns its id alongside the sequence number.
  *
  * Returns the on-chain commitment metadata, or `null` on any failure
- * (network, timeout, non-2xx, malformed response). The caller is expected
- * to treat `null` as a deferred publish, not a hard failure.
+ * (network, timeout, non-2xx, malformed response, unparseable timestamp).
+ * The caller is expected to treat `null` as a deferred publish, not a hard
+ * failure.
  */
 export async function publishEvent(
   topicId: string,
@@ -86,9 +100,29 @@ export async function publishEvent(
       return null;
     }
 
+    const consensusEpoch = Date.parse(body.consensusTimestamp);
+    if (!Number.isFinite(consensusEpoch)) {
+      console.warn('[hedera-publisher] unparseable consensusTimestamp', {
+        url,
+        value: body.consensusTimestamp,
+      });
+      return null;
+    }
+
+    let sequenceNumber: bigint;
+    try {
+      sequenceNumber = BigInt(body.sequenceNumber);
+    } catch {
+      console.warn('[hedera-publisher] sequenceNumber not coercible to BigInt', {
+        url,
+        value: body.sequenceNumber,
+      });
+      return null;
+    }
+
     return {
       topicId: body.topicId,
-      sequenceNumber: BigInt(body.sequenceNumber),
+      sequenceNumber,
       consensusTimestamp: body.consensusTimestamp,
       transactionId: body.transactionId,
     };
