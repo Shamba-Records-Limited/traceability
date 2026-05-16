@@ -41,12 +41,43 @@ export interface MintDidResult {
   documentVersion: number;
 }
 
-interface IssuerResponse {
-  did: string;
-  topicId: string;
-  transactionId: string;
-  consensusTimestamp: string;
-  documentVersion: number;
+/**
+ * Validate the issuer's response against the expected shape. Returning a
+ * narrowed value (rather than casting `response.json()` directly) means a
+ * future maintainer cannot accidentally trust an unverified property —
+ * everything below this function works against a real `MintDidResult`.
+ */
+function parseIssuerResponse(raw: unknown): MintDidResult | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (
+    typeof r.did !== 'string' ||
+    typeof r.topicId !== 'string' ||
+    typeof r.transactionId !== 'string' ||
+    typeof r.consensusTimestamp !== 'string' ||
+    typeof r.documentVersion !== 'number'
+  ) {
+    return null;
+  }
+  return {
+    did: r.did,
+    topicId: r.topicId,
+    transactionId: r.transactionId,
+    consensusTimestamp: r.consensusTimestamp,
+    documentVersion: r.documentVersion,
+  };
+}
+
+/**
+ * `Date.parse` is intentionally lenient and accepts strings like `"1/2/2024"`.
+ * The issuer (and the publisher service) emit RFC 3339 Nano via Go's
+ * `time.RFC3339Nano`, so a leading `YYYY-MM-DDTHH:MM:SS` prefix is the right
+ * shape to expect. Combine the regex with `Date.parse` to catch both
+ * "RFC 3339-shaped but invalid date" and "valid date but wrong format".
+ */
+function isRfc3339Timestamp(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) return false;
+  return Number.isFinite(Date.parse(value));
 }
 
 export interface MintDidInput {
@@ -88,21 +119,14 @@ export async function mintDid(input: MintDidInput): Promise<MintDidResult | null
       return null;
     }
 
-    const body = (await response.json()) as IssuerResponse;
-    if (
-      typeof body !== 'object' ||
-      body === null ||
-      typeof body.did !== 'string' ||
-      typeof body.topicId !== 'string' ||
-      typeof body.transactionId !== 'string' ||
-      typeof body.consensusTimestamp !== 'string' ||
-      typeof body.documentVersion !== 'number'
-    ) {
+    const raw = (await response.json()) as unknown;
+    const body = parseIssuerResponse(raw);
+    if (!body) {
       console.warn('[did-issuer] malformed response body', { url });
       return null;
     }
 
-    if (!Number.isFinite(Date.parse(body.consensusTimestamp))) {
+    if (!isRfc3339Timestamp(body.consensusTimestamp)) {
       console.warn('[did-issuer] unparseable consensusTimestamp', {
         url,
         value: body.consensusTimestamp,
@@ -115,13 +139,7 @@ export async function mintDid(input: MintDidInput): Promise<MintDidResult | null
       return null;
     }
 
-    return {
-      did: body.did,
-      topicId: body.topicId,
-      transactionId: body.transactionId,
-      consensusTimestamp: body.consensusTimestamp,
-      documentVersion: body.documentVersion,
-    };
+    return body;
   } catch (error) {
     console.warn('[did-issuer] mint failed', {
       url,

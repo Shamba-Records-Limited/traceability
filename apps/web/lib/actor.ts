@@ -170,6 +170,15 @@ export async function createActorForUser(input: CreateActorInput): Promise<Actor
       if (rotated) {
         return rotated;
       }
+      // The HCS mint landed but the UPDATE matched no rows (e.g. the actor
+      // row was deleted between insert and update). The on-chain DID exists
+      // but the DB still carries the placeholder; same operational concern
+      // as the catch-branch below — surface it so it's observable.
+      console.error('[actor] DID mint succeeded but rotation UPDATE returned no rows', {
+        actorId: created.id,
+        did: mint.did,
+        topicId: mint.topicId,
+      });
     } catch (error) {
       // The HCS mint landed but the rotation UPDATE failed. The placeholder
       // DID survives on the row; future page loads will still show
