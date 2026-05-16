@@ -2,9 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    typedRoutes: true,
-  },
+  // Next 16 promoted typedRoutes out of `experimental`. The flag stays on.
+  typedRoutes: true,
   transpilePackages: ['@shamba/shared-types', '@shamba/db'],
 };
 
