@@ -1,4 +1,4 @@
-import { and, eq, isNull, like } from 'drizzle-orm';
+import { and, eq, inArray, isNull, like, lt, or, sql } from 'drizzle-orm';
 
 import { schema } from '@shamba/db';
 
@@ -11,31 +11,34 @@ const { actors, events, plots } = schema;
 
 /**
  * The reconciler does the housekeeping our happy paths can't promise:
- * picking up rows where the on-chain side of a write soft-failed earlier,
+ * picking up rows where the on-chain side of a write soft-failed earlier
  * and replaying the network call. It is the system's recovery mechanism
  * for the soft-failure contract in `lib/hedera-publisher.ts` and
  * `lib/did-issuer.ts`.
  *
- * Two work queues:
+ * Two work queues — pending HCS event publishes and placeholder DID
+ * rotations — share the same claim-then-publish pattern:
  *
- *   1. `events` with `on_chain_topic_id IS NULL` — `plot_attested` (and
- *      future event types) that were persisted off-chain but never made it
- *      to HCS. We rebuild the `EventCommitment` from the persisted row and
- *      retry `publishEvent`. On success we backfill `events.on_chain_*`
- *      and, for plot-level events, `plots.on_chain_commitment_topic_id`.
+ *   1. SELECT candidate rows whose claim is either unset or stale.
+ *   2. UPDATE ... SET claimed_at = now() ... RETURNING to atomically claim
+ *      the rows. The UPDATE re-applies the staleness predicate so any row
+ *      another worker grabbed in the meantime drops out. Only the
+ *      returned rows are ours to publish.
+ *   3. Call the external service (publisher / issuer) for each claimed
+ *      row.
+ *   4. On success, UPDATE the row's on-chain columns; the row is now
+ *      excluded from the candidate query by the `IS NULL` predicate, so
+ *      `claimed_at` does not need to be cleared.
+ *   5. On external-service failure, leave `claimed_at` set; the lease
+ *      naturally expires after `CLAIM_TTL_MS` and another tick re-tries.
  *
- *   2. `actors` with `did LIKE 'did:placeholder:%'` — onboarding rows whose
- *      did-issuer call failed. We retry `mintDid` and rotate the row.
- *
- * Each pass is capped by a `limit` so a single tick cannot run unboundedly
- * long on Vercel's request-time budget. The cron schedule (see
- * `vercel.ts`) re-fires the route every few minutes, so a backlog drains
- * across ticks.
- *
- * Idempotency: every retry is safe to repeat. A successful retry results
- * in an UPDATE that flips the null columns; a follow-up tick simply
- * finds nothing to do.
+ * The lease TTL is set well above the publisher's per-request timeout so
+ * a slow-but-eventually-successful publish completes inside its claim
+ * window, but well below the cron cadence so a worker crash never strands
+ * a row for longer than a single cron interval.
  */
+
+const CLAIM_TTL_MS = 90_000;
 
 export interface ReconcileSummary {
   events: {
@@ -54,7 +57,7 @@ export interface ReconcileSummary {
 const DEFAULT_EVENT_LIMIT = 50;
 const DEFAULT_ACTOR_LIMIT = 25;
 
-interface PendingEventRow {
+interface ClaimedEventRow {
   id: string;
   type: string;
   plotId: string | null;
@@ -62,6 +65,51 @@ interface PendingEventRow {
   emittedAt: Date;
   emittedByDid: string;
   payloadHash: string;
+}
+
+/**
+ * Atomically claim up to `limit` pending event rows. Returns only rows the
+ * caller now owns the lease on; rows another worker grabbed first silently
+ * drop out via the UPDATE's re-applied predicate.
+ */
+async function claimPendingEvents(limit: number): Promise<ClaimedEventRow[]> {
+  const staleCutoff = new Date(Date.now() - CLAIM_TTL_MS);
+  const candidates = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(
+      and(
+        isNull(events.onChainTopicId),
+        or(isNull(events.claimedAt), lt(events.claimedAt, staleCutoff)),
+      ),
+    )
+    .orderBy(events.emittedAt)
+    .limit(limit);
+
+  if (candidates.length === 0) return [];
+
+  return db
+    .update(events)
+    .set({ claimedAt: sql`now()` })
+    .where(
+      and(
+        inArray(
+          events.id,
+          candidates.map((c) => c.id),
+        ),
+        isNull(events.onChainTopicId),
+        or(isNull(events.claimedAt), lt(events.claimedAt, staleCutoff)),
+      ),
+    )
+    .returning({
+      id: events.id,
+      type: events.type,
+      plotId: events.plotId,
+      batchId: events.batchId,
+      emittedAt: events.emittedAt,
+      emittedByDid: events.emittedByDid,
+      payloadHash: events.payloadHash,
+    });
 }
 
 /**
@@ -79,28 +127,16 @@ export async function reconcilePlotEvents(
     failed: 0,
   };
 
-  const pending = (await db
-    .select({
-      id: events.id,
-      type: events.type,
-      plotId: events.plotId,
-      batchId: events.batchId,
-      emittedAt: events.emittedAt,
-      emittedByDid: events.emittedByDid,
-      payloadHash: events.payloadHash,
-    })
-    .from(events)
-    .where(isNull(events.onChainTopicId))
-    .orderBy(events.emittedAt)
-    .limit(limit)) satisfies PendingEventRow[];
+  const claimed = await claimPendingEvents(limit);
+  summary.scanned = claimed.length;
 
-  summary.scanned = pending.length;
-
-  for (const row of pending) {
+  for (const row of claimed) {
     if (!row.plotId && !row.batchId) {
       // Defensive: every event must attach to a plot or a batch. If neither
       // is present the row is malformed (only possible via a schema
-      // migration mistake) and the publisher can't accept it.
+      // migration mistake) and the publisher can't accept it. Leave the
+      // lease set so it doesn't get re-tried on this tick; it expires
+      // after CLAIM_TTL_MS and skips again next tick.
       summary.skipped += 1;
       continue;
     }
@@ -153,9 +189,44 @@ export async function reconcilePlotEvents(
   return summary;
 }
 
-interface PendingActorRow {
+interface ClaimedActorRow {
   id: string;
   displayName: string;
+}
+
+/**
+ * Atomically claim up to `limit` actor rows still on a placeholder DID.
+ */
+async function claimPlaceholderActors(limit: number): Promise<ClaimedActorRow[]> {
+  const staleCutoff = new Date(Date.now() - CLAIM_TTL_MS);
+  const candidates = await db
+    .select({ id: actors.id })
+    .from(actors)
+    .where(
+      and(
+        like(actors.did, `${PLACEHOLDER_DID_PREFIX}%`),
+        or(isNull(actors.claimedAt), lt(actors.claimedAt, staleCutoff)),
+      ),
+    )
+    .orderBy(actors.createdAt)
+    .limit(limit);
+
+  if (candidates.length === 0) return [];
+
+  return db
+    .update(actors)
+    .set({ claimedAt: sql`now()` })
+    .where(
+      and(
+        inArray(
+          actors.id,
+          candidates.map((c) => c.id),
+        ),
+        like(actors.did, `${PLACEHOLDER_DID_PREFIX}%`),
+        or(isNull(actors.claimedAt), lt(actors.claimedAt, staleCutoff)),
+      ),
+    )
+    .returning({ id: actors.id, displayName: actors.displayName });
 }
 
 /**
@@ -171,16 +242,10 @@ export async function reconcileActorDids(
     failed: 0,
   };
 
-  const pending = (await db
-    .select({ id: actors.id, displayName: actors.displayName })
-    .from(actors)
-    .where(like(actors.did, `${PLACEHOLDER_DID_PREFIX}%`))
-    .orderBy(actors.createdAt)
-    .limit(limit)) satisfies PendingActorRow[];
+  const claimed = await claimPlaceholderActors(limit);
+  summary.scanned = claimed.length;
 
-  summary.scanned = pending.length;
-
-  for (const row of pending) {
+  for (const row of claimed) {
     const mint = await mintDid({ actorId: row.id, displayName: row.displayName });
     if (!mint) {
       summary.failed += 1;
@@ -189,9 +254,9 @@ export async function reconcileActorDids(
 
     try {
       // Belt-and-braces: only rotate rows that still look like a
-      // placeholder. A concurrent onboarding tick (or a previous
-      // reconciler run) might have rotated the row already; in that case
-      // we leave it alone and count it as a skip-shaped success.
+      // placeholder. A concurrent onboarding tick (or a stale lease that
+      // expired between our claim and our publish) might have rotated the
+      // row already; in that case we leave it alone.
       const updated = await db
         .update(actors)
         .set({ did: mint.did, updatedAt: new Date() })
