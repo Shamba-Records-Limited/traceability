@@ -37,6 +37,14 @@ export const events = pgTable(
     onChainSequenceNumber: bigint('on_chain_sequence_number', { mode: 'bigint' }),
     onChainConsensusTimestamp: timestamp('on_chain_consensus_timestamp', { withTimezone: true }),
     onChainTransactionId: text('on_chain_transaction_id'),
+    /**
+     * Reconciler lease timestamp. Non-null means a worker is currently
+     * attempting to publish this row. Workers refuse to claim rows whose
+     * `claimed_at` is younger than a few minutes — this is the
+     * concurrency guard that prevents two cron ticks from issuing
+     * duplicate HCS commitments for the same event.
+     */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
   },
   (t) => [
     index('events_batch_idx').on(t.batchId),

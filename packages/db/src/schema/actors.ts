@@ -29,6 +29,13 @@ export const actors = pgTable(
       .default(sql`'{}'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Reconciler lease timestamp. Non-null means a worker is currently
+     * attempting to mint and rotate a real did:hedera for this actor.
+     * Stops two cron ticks from minting duplicate HCS topics for the
+     * same actor's DID document.
+     */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
   },
   (t) => [index('actors_role_idx').on(t.role), index('actors_country_idx').on(t.country)],
 );

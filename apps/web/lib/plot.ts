@@ -107,10 +107,8 @@ export interface RegisteredPlot {
    * Hedera Consensus Service topic the `plot_attested` event was committed
    * to. `null` when the publisher was unreachable, timed out, returned a
    * non-2xx, or returned a malformed body. (Mock mode still returns a
-   * topic id — `null` is failure, not mock-skip.) A background reconciler
-   * to retry pending commits is **future work**; today these rows stay
-   * `null` until someone manually re-runs the publish or the reconciler
-   * ships.
+   * topic id — `null` is failure, not mock-skip.) `null` rows are picked
+   * up by the reconciler in `lib/reconciler.ts` on the cron schedule.
    */
   onChainTopicId: string | null;
 }
@@ -130,10 +128,9 @@ export interface RegisteredPlot {
  * The HCS publish runs **after** the DB transaction commits so a slow or
  * unreachable publisher does not hold a database connection. On
  * publisher failure (network error, non-2xx, malformed response) the
- * `events` and `plots` rows persist with `on_chain_*` columns null. A
- * background reconciler that retries pending publishes is **future
- * work**; until it ships, pending rows stay pending until manual
- * intervention.
+ * `events` and `plots` rows persist with `on_chain_*` columns null and
+ * are picked up by `reconcilePlotEvents` in `lib/reconciler.ts` on the
+ * Vercel Cron schedule (every 5 minutes).
  *
  * Returns the new plot's id along with the event id, its hash, and the
  * resulting on-chain topic id (or null if the publish was deferred).
