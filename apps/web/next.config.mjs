@@ -5,7 +5,7 @@ const nextConfig = {
   experimental: {
     typedRoutes: true,
   },
-  transpilePackages: ['@shamba/shared-types'],
+  transpilePackages: ['@shamba/shared-types', '@shamba/db'],
 };
 
 export default nextConfig;
