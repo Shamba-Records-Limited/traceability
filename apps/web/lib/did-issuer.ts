@@ -6,10 +6,10 @@
  * returns a non-2xx, or returns a malformed body, this module returns
  * `null` and logs a warning rather than throwing. Callers (e.g.
  * `createActorForUser`) treat the absence of a real DID as "still
- * holding the `did:placeholder:` stub" — the actor row persists and a
- * background reconciler that rotates placeholders is **not yet
- * implemented**; pending rows stay on the placeholder until manual
- * intervention or a future reconciler PR.
+ * holding the `did:placeholder:` stub". The reconciler in
+ * `lib/reconciler.ts` (scheduled via Vercel Cron at
+ * `/api/cron/reconcile`) sweeps actor rows still on a placeholder on a
+ * 5-minute cadence and retries the mint until the rotation lands.
  *
  * Configurable via:
  *   HEDERA_DID_ISSUER_URL  Base URL of the issuer (default http://localhost:8081).

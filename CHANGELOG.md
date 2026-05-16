@@ -38,6 +38,8 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 - `apps/web` `/dashboard/plots`: each plot now shows either a Hashscan link to its HCS topic (when committed) or a "Pending HCS commit" pill (when the publisher was unreachable / mock-skipped).
 - `apps/web/lib/did-issuer.ts`: HTTP client for `services/did-issuer` with the same soft-failure contract as the publisher client (timeout, non-2xx, malformed body all return `null`). Configurable via `HEDERA_DID_ISSUER_URL` and `HEDERA_DID_ISSUER_TIMEOUT_MS`.
 - `apps/web/lib/actor.ts`: `createActorForUser` now calls the did-issuer right after the create transaction and rotates the placeholder DID to the minted `did:hedera:<network>:<topicId>`. On issuer failure the placeholder is left in place; the dashboard's existing "Placeholder identifier" notice surfaces the state, and a background reconciler remains future work.
+- `apps/web/lib/reconciler.ts`: background reconciliation logic — `reconcilePlotEvents` scans `events` rows with `on_chain_topic_id IS NULL` and retries `publishEvent`; `reconcileActorDids` scans `actors` rows on a `did:placeholder:` prefix and retries `mintDid`. Both bounded by row limits, fully idempotent, and emit a structured summary.
+- `apps/web/app/api/cron/reconcile/route.ts`: cron endpoint that authenticates a shared bearer token (`CRON_SECRET`) and invokes `runReconciler`. Wired to Vercel Cron at a 5-minute cadence via `apps/web/vercel.json`. Closes the "future work" caveat that previously appeared across the publisher/issuer client docstrings — pending rows now self-heal.
 
 ### Changed
 

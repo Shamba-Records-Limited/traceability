@@ -15,8 +15,9 @@ const { actors, users } = schema;
  * after the create transaction commits, `createActorForUser` calls the
  * issuer and rotates the row to a real `did:hedera:<network>:<topicId>`.
  *
- * Placeholders that survive the rotation (issuer down at the time)
- * persist until manual intervention or a future reconciler PR.
+ * Placeholders that survive the rotation (issuer down at the time) are
+ * picked up by `reconcileActorDids` in `lib/reconciler.ts` on the cron
+ * schedule and retried until the rotation lands.
  */
 export const PLACEHOLDER_DID_PREFIX = 'did:placeholder:';
 
@@ -82,9 +83,9 @@ export class OnboardingValidationError extends Error {
  * out-of-transaction to mint a real `did:hedera:<network>:<topicId>` for
  * the new actor; the placeholder DID is then rotated to the real value
  * via a small follow-up UPDATE. On issuer failure (network, timeout,
- * non-2xx, malformed body) the placeholder is left in place and a
- * background reconciler is expected to backfill — that reconciler is
- * future work; until it ships, placeholder rows stay placeholder.
+ * non-2xx, malformed body) the placeholder is left in place and the
+ * reconciler in `lib/reconciler.ts` (Vercel Cron, 5-minute cadence)
+ * sweeps placeholder rows and retries the mint.
  */
 export async function createActorForUser(input: CreateActorInput): Promise<ActorProfile> {
   const issues: { path: string; message: string }[] = [];

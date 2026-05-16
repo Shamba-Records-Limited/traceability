@@ -13,10 +13,10 @@
  * returns a non-2xx, or returns a malformed body, this module returns
  * `null` and logs a warning rather than throwing. Callers (e.g.
  * `registerPlot`) treat the absence of an on-chain commitment as
- * "pending" — the row persists with `on_chain_*` columns null. A
- * background reconciler that retries pending publishes is **not yet
- * implemented**; pending rows stay pending until manual intervention or
- * a future PR ships the reconciler.
+ * "pending" — the row persists with `on_chain_*` columns null. The
+ * reconciler in `lib/reconciler.ts` (scheduled via Vercel Cron at
+ * `/api/cron/reconcile`) sweeps pending rows on a 5-minute cadence and
+ * retries the publish until the commitment lands.
  *
  * Configurable via:
  *   HEDERA_PUBLISHER_URL  Base URL of the publisher (default http://localhost:8080).
