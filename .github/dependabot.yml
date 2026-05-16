@@ -78,7 +78,15 @@ updates:
       prefix: chore(ci)
       include: scope
     groups:
-      actions-all:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+      actions-security:
+        applies-to: security-updates
         patterns:
           - "*"
 
@@ -96,6 +104,14 @@ updates:
       prefix: chore(deps)
       include: scope
     groups:
-      docker-all:
+      docker-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+      docker-security:
+        applies-to: security-updates
         patterns:
           - "*"
