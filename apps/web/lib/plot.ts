@@ -91,8 +91,6 @@ export interface RegisterPlotInput {
   subnational?: string;
   commodities: ReadonlyArray<Commodity>;
   geometry: Polygon | Point;
-  productionStart?: Date;
-  productionEnd?: Date;
 }
 
 export interface RegisteredPlot {
@@ -178,8 +176,6 @@ export async function registerPlot(input: RegisterPlotInput): Promise<Registered
   const country = countryResult.data!;
   const commodities = [...input.commodities];
   const now = new Date();
-  const productionStart = input.productionStart ?? now;
-  const productionEnd = input.productionEnd ?? now;
 
   // Run the deforestation provider before opening the transaction. The check
   // can be expensive and we don't want to hold a database transaction open
