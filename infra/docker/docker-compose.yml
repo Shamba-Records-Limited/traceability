@@ -43,6 +43,16 @@ services:
       - "8080:8080" # gateway
     volumes:
       - ipfs_data:/data/ipfs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --quiet --spider --post-data='' http://localhost:5001/api/v0/version || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   postgres_data:

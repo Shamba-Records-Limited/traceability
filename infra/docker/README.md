@@ -33,10 +33,10 @@ The `pnpm db:*` aliases live in the root `package.json`. They wrap `docker compo
 Apply the database schema:
 
 ```bash
-pnpm --filter @shamba/db db:migrate
+pnpm db:migrate
 ```
 
-(Or `pnpm db:migrate` once the root alias is wired.)
+(Equivalent to the longer `pnpm --filter @shamba/db db:migrate`.)
 
 ## Notes
 
