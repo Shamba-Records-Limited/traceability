@@ -12,22 +12,30 @@ import (
 	"github.com/Shamba-Records-Limited/traceability/services/hedera-publisher/internal/config"
 )
 
-// TestIntegrationSDKClient_SubmitMessage runs an end-to-end check against the
-// configured Hedera network. It is skipped unless:
-//
-//	HEDERA_INTEGRATION=1
-//	HEDERA_OPERATOR_ID and HEDERA_OPERATOR_PRIVATE_KEY are set
-//
-// The test creates a fresh HCS topic and submits a single message. It is the
-// minimum viable confidence check that the real SDK client correctly signs and
-// reaches a node. Network and crypto are real; no cleanup is performed on the
-// created topic — testnet topics expire naturally.
-func TestIntegrationSDKClient_SubmitMessage(t *testing.T) {
+// integrationEnvVars lists every environment variable that must be set for the
+// integration tests in this file to run. Matches what config.Load() requires
+// when MockMode is false, so a passing skip check guarantees that the
+// subsequent config.Load() will succeed.
+var integrationEnvVars = []string{
+	"HEDERA_OPERATOR_ID",
+	"HEDERA_OPERATOR_PRIVATE_KEY",
+	"HEDERA_TREASURY_ID",
+	"HEDERA_TREASURY_PRIVATE_KEY",
+}
+
+// skipUnlessIntegration centralises the preflight check used by every
+// integration test in this package. We skip — never fail — when the toggle or
+// any required credential is missing, so the standard `go test ./...` run on
+// any developer machine remains green without testnet access.
+func skipUnlessIntegration(t *testing.T) (*config.Config, Client) {
+	t.Helper()
 	if os.Getenv("HEDERA_INTEGRATION") != "1" {
-		t.Skip("set HEDERA_INTEGRATION=1 to run this test")
+		t.Skip("set HEDERA_INTEGRATION=1 to run hedera integration tests")
 	}
-	if os.Getenv("HEDERA_OPERATOR_ID") == "" || os.Getenv("HEDERA_OPERATOR_PRIVATE_KEY") == "" {
-		t.Skip("HEDERA_OPERATOR_ID and HEDERA_OPERATOR_PRIVATE_KEY must be set for integration tests")
+	for _, key := range integrationEnvVars {
+		if os.Getenv(key) == "" {
+			t.Skipf("%s must be set for hedera integration tests", key)
+		}
 	}
 
 	cfg, err := config.Load()
@@ -48,6 +56,15 @@ func TestIntegrationSDKClient_SubmitMessage(t *testing.T) {
 	if got := client.Mode(); got != "real" {
 		t.Fatalf("expected mode 'real', got %q", got)
 	}
+	return cfg, client
+}
+
+// TestIntegrationSDKClient_SubmitMessage exercises the HCS path: creates a
+// fresh topic and submits a single message, asserting that the receipt and
+// record both come back populated. No cleanup is performed — testnet topics
+// expire naturally.
+func TestIntegrationSDKClient_SubmitMessage(t *testing.T) {
+	_, client := skipUnlessIntegration(t)
 
 	payload, err := json.Marshal(map[string]any{
 		"test":      "integration",
@@ -57,7 +74,7 @@ func TestIntegrationSDKClient_SubmitMessage(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	result, err := client.SubmitMessage(ctx, "", payload)
@@ -70,8 +87,47 @@ func TestIntegrationSDKClient_SubmitMessage(t *testing.T) {
 	if result.TransactionID == "" {
 		t.Errorf("expected transaction id, got empty string")
 	}
+	if result.ConsensusTimestamp == "" {
+		t.Errorf("expected consensus timestamp, got empty string")
+	}
 	if result.SequenceNumber <= 0 {
 		t.Errorf("expected positive sequence number, got %d", result.SequenceNumber)
 	}
-	t.Logf("submitted message to %s seq=%d tx=%s", result.TopicID, result.SequenceNumber, result.TransactionID)
+	t.Logf("submitted to %s seq=%d consensus=%s tx=%s",
+		result.TopicID, result.SequenceNumber, result.ConsensusTimestamp, result.TransactionID)
+}
+
+// TestIntegrationSDKClient_MintNFT exercises the HTS NFT path: creates a fresh
+// non-fungible collection (treasury-signed) and mints a single NFT against it.
+// The same flow exercises the treasury-signing logic that handoffs depend on,
+// so a green run here is the strongest local signal that real mode works.
+func TestIntegrationSDKClient_MintNFT(t *testing.T) {
+	_, client := skipUnlessIntegration(t)
+
+	metadata, err := json.Marshal(map[string]any{
+		"test":      "integration",
+		"commodity": "coffee",
+		"lot":       time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		t.Fatalf("marshal metadata: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	result, err := client.MintNFT(ctx, "", "Shamba Integration", "SHMBI", metadata)
+	if err != nil {
+		t.Fatalf("mint nft: %v", err)
+	}
+	if result.TokenID == "" {
+		t.Errorf("expected token id, got empty string")
+	}
+	if result.SerialNumber <= 0 {
+		t.Errorf("expected positive serial number, got %d", result.SerialNumber)
+	}
+	if result.TransactionID == "" {
+		t.Errorf("expected transaction id, got empty string")
+	}
+	t.Logf("minted %s serial=%d tx=%s", result.TokenID, result.SerialNumber, result.TransactionID)
 }
