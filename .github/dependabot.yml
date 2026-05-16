@@ -1,6 +1,18 @@
 version: 2
+# Dependabot configuration for Shamba Traceability.
+#
+# Strategy: one grouped PR per ecosystem per week (covering minor + patch
+# bumps), and a separate PR per major bump so they get individual review.
+# This keeps the PR queue manageable while still surfacing breaking changes
+# explicitly.
+
 updates:
-  # Root and web app share a pnpm workspace; dependabot scans each manifest.
+  # ---------------------------------------------------------------------------
+  # npm (root + every workspace) — pnpm uses one root lockfile, so a root-level
+  # scan is sufficient and we deliberately do NOT add per-workspace entries.
+  # Workspace package.json files are still scanned for vulnerable advisories
+  # via GitHub's native dependency graph.
+  # ---------------------------------------------------------------------------
   - package-ecosystem: npm
     directory: "/"
     schedule:
@@ -8,61 +20,82 @@ updates:
       day: monday
       time: "07:00"
       timezone: Africa/Nairobi
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels: [dependencies, javascript]
     commit-message:
       prefix: chore(deps)
       include: scope
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
-  - package-ecosystem: npm
-    directory: "/apps/web"
-    schedule:
-      interval: weekly
-      day: monday
-    labels: [dependencies, javascript, web]
-    commit-message:
-      prefix: chore(deps)
-      include: scope
-
-  - package-ecosystem: npm
-    directory: "/packages/shared-types"
-    schedule:
-      interval: weekly
-      day: monday
-    labels: [dependencies, javascript, types]
-    commit-message:
-      prefix: chore(deps)
-      include: scope
-
-  # Go service.
+  # ---------------------------------------------------------------------------
+  # Go modules — one ecosystem entry per Go service.
+  # ---------------------------------------------------------------------------
   - package-ecosystem: gomod
     directory: "/services/hedera-publisher"
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 5
     labels: [dependencies, go, hedera]
     commit-message:
       prefix: chore(deps)
       include: scope
+    groups:
+      go-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
-  # GitHub Actions versions.
+  # ---------------------------------------------------------------------------
+  # GitHub Actions — almost always safe to bundle.
+  # ---------------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 5
     labels: [dependencies, ci]
     commit-message:
       prefix: chore(ci)
       include: scope
+    groups:
+      actions-all:
+        patterns:
+          - "*"
 
-  # Dockerfile base images.
+  # ---------------------------------------------------------------------------
+  # Container base images.
+  # ---------------------------------------------------------------------------
   - package-ecosystem: docker
     directory: "/services/hedera-publisher"
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 5
     labels: [dependencies, docker]
     commit-message:
       prefix: chore(deps)
       include: scope
+    groups:
+      docker-all:
+        patterns:
+          - "*"
