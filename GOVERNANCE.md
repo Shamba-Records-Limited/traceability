@@ -62,19 +62,19 @@ A subset of maintainers, plus optionally external advisors, who handle vulnerabi
 
 The codebase is divided into **areas** that match the top-level workspace layout. Each area has a CODEOWNER who is the primary reviewer for changes within it:
 
-| Area                              | Description                                           |
-| --------------------------------- | ----------------------------------------------------- |
-| `apps/web`                        | Next.js web application                               |
-| `services/hedera-publisher`       | Hedera HCS/HTS publishing service                     |
-| `services/deforestation`          | Deforestation-check service and provider adapters     |
-| `services/dds-generator`          | EUDR Due Diligence Statement generator                |
-| `services/did-issuer`             | Hedera DID + W3C Verifiable Credentials issuer        |
-| `packages/contracts`              | Solidity smart contracts on Hedera EVM                |
-| `packages/shared-types`           | Shared types and Zod schemas                          |
-| `packages/eudr-schema`            | EUDR DDS JSON schema                                  |
-| `infra`                           | Local dev compose, Vercel config, deployment scripts  |
-| `docs`                            | Architecture, ADRs, compliance mappings               |
-| `.github`                         | CI workflows, repository policies                     |
+| Area                        | Description                                          |
+| --------------------------- | ---------------------------------------------------- |
+| `apps/web`                  | Next.js web application                              |
+| `services/hedera-publisher` | Hedera HCS/HTS publishing service                    |
+| `services/deforestation`    | Deforestation-check service and provider adapters    |
+| `services/dds-generator`    | EUDR Due Diligence Statement generator               |
+| `services/did-issuer`       | Hedera DID + W3C Verifiable Credentials issuer       |
+| `packages/contracts`        | Solidity smart contracts on Hedera EVM               |
+| `packages/shared-types`     | Shared types and Zod schemas                         |
+| `packages/eudr-schema`      | EUDR DDS JSON schema                                 |
+| `infra`                     | Local dev compose, Vercel config, deployment scripts |
+| `docs`                      | Architecture, ADRs, compliance mappings              |
+| `.github`                   | CI workflows, repository policies                    |
 
 Cross-area changes require approval from each affected area's CODEOWNER.
 

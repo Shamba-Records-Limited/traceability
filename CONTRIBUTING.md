@@ -67,16 +67,16 @@ We use a lightweight trunk-based model:
 - Work happens on short-lived **feature branches** off `main`.
 - Branch names follow the pattern `<type>/<short-kebab-description>` where `<type>` is one of:
 
-  | Prefix      | When to use                                                |
-  | ----------- | ---------------------------------------------------------- |
-  | `feat/`     | New user-visible feature                                   |
-  | `fix/`      | Bug fix                                                    |
-  | `chore/`    | Tooling, dependencies, cleanup with no behaviour change    |
-  | `docs/`     | Documentation-only change                                  |
-  | `refactor/` | Internal restructure with no behaviour change              |
-  | `test/`     | Adding or improving tests                                  |
-  | `perf/`     | Performance improvement                                    |
-  | `ci/`       | CI / GitHub Actions / pipeline change                      |
+  | Prefix      | When to use                                                  |
+  | ----------- | ------------------------------------------------------------ |
+  | `feat/`     | New user-visible feature                                     |
+  | `fix/`      | Bug fix                                                      |
+  | `chore/`    | Tooling, dependencies, cleanup with no behaviour change      |
+  | `docs/`     | Documentation-only change                                    |
+  | `refactor/` | Internal restructure with no behaviour change                |
+  | `test/`     | Adding or improving tests                                    |
+  | `perf/`     | Performance improvement                                      |
+  | `ci/`       | CI / GitHub Actions / pipeline change                        |
   | `security/` | Security hardening (use private channel for vulnerabilities) |
 
   Example: `feat/hedera-publisher-mint-batch`, `fix/dds-empty-polygon`.

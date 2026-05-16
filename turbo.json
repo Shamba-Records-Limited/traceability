@@ -1,26 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalDependencies": [
-    "tsconfig.base.json",
-    ".env",
-    ".env.local"
-  ],
-  "globalEnv": [
-    "NODE_ENV",
-    "VERCEL_ENV",
-    "HEDERA_NETWORK"
-  ],
+  "globalDependencies": ["tsconfig.base.json", ".env", ".env.local"],
+  "globalEnv": ["NODE_ENV", "VERCEL_ENV", "HEDERA_NETWORK"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [
-        ".next/**",
-        "!.next/cache/**",
-        "dist/**",
-        "build/**",
-        "out/**"
-      ]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**", "out/**"]
     },
     "dev": {
       "cache": false,

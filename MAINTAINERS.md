@@ -4,9 +4,9 @@ This is the canonical list of people with merge rights on Shamba Traceability. S
 
 ## Active maintainers
 
-| Name           | GitHub handle      | Affiliation              | Primary areas                           |
-| -------------- | ------------------ | ------------------------ | --------------------------------------- |
-| Kevin Kihara   | @developerkevo     | Shamba Records Limited   | All areas (founding maintainer, steward representative) |
+| Name         | GitHub handle  | Affiliation            | Primary areas                                           |
+| ------------ | -------------- | ---------------------- | ------------------------------------------------------- |
+| Kevin Kihara | @developerkevo | Shamba Records Limited | All areas (founding maintainer, steward representative) |
 
 Additional maintainers will be added here as they are nominated and confirmed per the process in [GOVERNANCE.md](./GOVERNANCE.md).
 
@@ -14,9 +14,9 @@ Additional maintainers will be added here as they are nominated and confirmed pe
 
 The security response team handles reports submitted under [SECURITY.md](./SECURITY.md).
 
-| Name           | GitHub handle      |
-| -------------- | ------------------ |
-| Kevin Kihara   | @developerkevo     |
+| Name         | GitHub handle  |
+| ------------ | -------------- |
+| Kevin Kihara | @developerkevo |
 
 ## Emeritus
 

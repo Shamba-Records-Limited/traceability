@@ -112,14 +112,14 @@ Detailed setup, including a local Postgres+PostGIS+IPFS stack via Docker, lives 
 
 ## Documentation
 
-| Topic                                          | Path                                            |
-| ---------------------------------------------- | ----------------------------------------------- |
-| Architecture Decision Records                  | [`docs/adr/`](./docs/adr/)                      |
-| System architecture overviews                  | [`docs/architecture/`](./docs/architecture/)    |
-| EUDR mapping (Regulation 2023/1115)            | [`docs/compliance/eudr-mapping.md`](./docs/compliance/eudr-mapping.md) |
-| Development guides                             | [`docs/development/`](./docs/development/)      |
-| Threat models                                  | [`docs/threat-model/`](./docs/threat-model/)    |
-| Roadmap                                        | [`docs/roadmap/`](./docs/roadmap/)              |
+| Topic                               | Path                                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| Architecture Decision Records       | [`docs/adr/`](./docs/adr/)                                             |
+| System architecture overviews       | [`docs/architecture/`](./docs/architecture/)                           |
+| EUDR mapping (Regulation 2023/1115) | [`docs/compliance/eudr-mapping.md`](./docs/compliance/eudr-mapping.md) |
+| Development guides                  | [`docs/development/`](./docs/development/)                             |
+| Threat models                       | [`docs/threat-model/`](./docs/threat-model/)                           |
+| Roadmap                             | [`docs/roadmap/`](./docs/roadmap/)                                     |
 
 ## License
 
@@ -128,7 +128,7 @@ Shamba Traceability is dual-licensed:
 - **Open-source**: [GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0).
 - **Commercial**: alternative terms are available from Shamba Records Limited — see [`LICENSE-COMMERCIAL.md`](./LICENSE-COMMERCIAL.md).
 
-The brand name *Shamba* and associated marks are trademarks of Shamba Records Limited and are not granted under either licence.
+The brand name _Shamba_ and associated marks are trademarks of Shamba Records Limited and are not granted under either licence.
 
 ## Contributing
 

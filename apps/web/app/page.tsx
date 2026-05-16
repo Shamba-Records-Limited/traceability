@@ -37,8 +37,8 @@ export default function HomePage() {
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-soil-700">
           Shamba Traceability is the open-source layer for agricultural supply-chain provenance.
-          Register plots, tokenize lots, record every handoff on Hedera, and generate compliant
-          EU Deforestation Regulation due-diligence statements — from cooperative to importer.
+          Register plots, tokenize lots, record every handoff on Hedera, and generate compliant EU
+          Deforestation Regulation due-diligence statements — from cooperative to importer.
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-4">
           <Link
@@ -58,8 +58,11 @@ export default function HomePage() {
 
       <footer className="border-t border-soil-200 pt-6 text-xs text-soil-600">
         <p>
-          A project of <a href="https://shambarecords.com" className="underline">Shamba Records
-          Limited</a>. Source code dual-licensed under AGPL-3.0 and a commercial licence.
+          A project of{' '}
+          <a href="https://shambarecords.com" className="underline">
+            Shamba Records Limited
+          </a>
+          . Source code dual-licensed under AGPL-3.0 and a commercial licence.
         </p>
       </footer>
     </main>

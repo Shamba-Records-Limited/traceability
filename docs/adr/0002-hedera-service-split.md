@@ -33,7 +33,6 @@ We will use a **hybrid topology**:
 3. **HTS fungible tokens for bulk commodity units (optional, commodity-by-commodity).** Some commodities (green coffee, beef, soy) are commercially handled in fungible quantities after a certain step in the chain. Where this is the case, we can mint a commodity-specific fungible token. The NFT representing the upstream lot is burned (or marked exhausted) when its mass is converted into fungible token supply. This trade-off — losing batch identity for fungibility — is taken consciously and recorded in the HCS log so the downstream owner can still trace back.
 
 4. **Smart contracts for selective logic only.** We will deploy contracts on Hedera EVM for three specific cases:
-
    - **Split / merge atomicity** — splitting one lot NFT into N children, or merging M lots into one, must be atomic with the appropriate burn/mint and event emission. A contract gives us this atomicity in one transaction.
    - **Handoff escrow** — locking payment until physical receipt is confirmed by the receiver's signature. Reduces counterparty risk for cooperatives selling to distant exporters.
    - **Payment splitting / royalties** — paying out a percentage of a sale to upstream actors (farmers, cooperatives) based on a previously declared split.

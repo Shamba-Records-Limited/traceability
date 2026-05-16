@@ -6,10 +6,10 @@ The Shamba Traceability project takes security seriously. Because the platform i
 
 Until we tag `1.0.0`, only the latest minor release receives security fixes. After `1.0.0`, the support matrix will be published here and in the release notes.
 
-| Version  | Status                          |
-| -------- | ------------------------------- |
-| `0.x`    | Pre-release; latest minor only  |
-| `>= 1.0` | Defined per release (post-1.0)  |
+| Version  | Status                         |
+| -------- | ------------------------------ |
+| `0.x`    | Pre-release; latest minor only |
+| `>= 1.0` | Defined per release (post-1.0) |
 
 ## Reporting a vulnerability
 
@@ -17,7 +17,7 @@ Until we tag `1.0.0`, only the latest minor release receives security fixes. Aft
 
 Report privately via one of the following channels, in order of preference:
 
-1. **GitHub Security Advisory** — Go to the repository's *Security* tab and click *Report a vulnerability*. This opens an encrypted, private discussion with the maintainers.
+1. **GitHub Security Advisory** — Go to the repository's _Security_ tab and click _Report a vulnerability_. This opens an encrypted, private discussion with the maintainers.
 2. **Email** — security@shambarecords.com. If you would like to encrypt your report, request our PGP key in the first message; we will reply with the current public key fingerprint.
 
 Please include:

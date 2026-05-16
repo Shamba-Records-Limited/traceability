@@ -22,7 +22,6 @@ Hedera publishes an open specification for the `did:hedera` method, anchored on 
 1. **Every actor receives a `did:hedera` identifier** on first registration. The DID document is anchored on a dedicated HCS topic.
 
 2. **Credentials are issued as W3C Verifiable Credentials.** Examples:
-
    - "X is a member of Y cooperative" (issued by the cooperative).
    - "Z holds Rainforest Alliance certification" (issued by RA).
    - "DDS-12345 was generated for shipment S and accepted by competent authority CA" (issued by the exporter, countersigned by us).

@@ -46,9 +46,7 @@ export const ddsSchema = z.object({
   operatorEuReference: z.string().max(120),
   productDescription: z.string().min(1).max(500),
   commodity: commoditySchema,
-  hsCode: z
-    .string()
-    .regex(/^\d{4,10}$/, 'must be a numeric HS / CN code (4-10 digits)'),
+  hsCode: z.string().regex(/^\d{4,10}$/, 'must be a numeric HS / CN code (4-10 digits)'),
   netMassKg: z.number().positive().optional(),
   volumeM3: z.number().positive().optional(),
   count: z.number().int().positive().optional(),

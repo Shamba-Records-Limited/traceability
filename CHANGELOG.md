@@ -10,6 +10,7 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 ## [Unreleased]
 
 ### Added
+
 - Initial monorepo scaffold (Turborepo + pnpm workspaces).
 - Apps: `web` (Next.js 15 App Router).
 - Services: `hedera-publisher` (Go).

@@ -6,18 +6,18 @@ Zod schemas are the source of truth. TypeScript types are derived from them via 
 
 ## Modules
 
-| Module       | Exports                                                                            |
-| ------------ | ---------------------------------------------------------------------------------- |
-| `common`     | Primitive scalars: `Hash`, `Iso8601`, `Uuid`, brand types, helpers                 |
-| `commodity`  | EUDR Annex I commodities and their units of measure                                |
-| `geometry`   | GeoJSON-shaped `Point` and `Polygon` types (WGS 84)                                |
-| `identity`   | `Did`, `VerifiableCredential`, key reference types                                 |
-| `actor`      | Farmer, Cooperative, Processor, Exporter, Importer, Auditor schemas               |
-| `plot`       | Plot of land with geometry, owner reference, and certifications                    |
-| `batch`      | A traceable unit of commodity at a point in time                                   |
-| `handoff`    | Chain-of-custody transfers between actors                                          |
-| `event`      | The on-chain (HCS) event vocabulary                                                |
-| `dds`        | EUDR Due Diligence Statement structure                                             |
+| Module      | Exports                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `common`    | Primitive scalars: `Hash`, `Iso8601`, `Uuid`, brand types, helpers  |
+| `commodity` | EUDR Annex I commodities and their units of measure                 |
+| `geometry`  | GeoJSON-shaped `Point` and `Polygon` types (WGS 84)                 |
+| `identity`  | `Did`, `VerifiableCredential`, key reference types                  |
+| `actor`     | Farmer, Cooperative, Processor, Exporter, Importer, Auditor schemas |
+| `plot`      | Plot of land with geometry, owner reference, and certifications     |
+| `batch`     | A traceable unit of commodity at a point in time                    |
+| `handoff`   | Chain-of-custody transfers between actors                           |
+| `event`     | The on-chain (HCS) event vocabulary                                 |
+| `dds`       | EUDR Due Diligence Statement structure                              |
 
 ## Usage
 
