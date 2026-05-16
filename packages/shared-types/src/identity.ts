@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { iso8601Schema } from './common.js';
+import { iso8601Schema } from './common';
 
 /**
  * Decentralized Identifier per the W3C DID Core spec, restricted to the

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { commoditySchema, processingStageSchema } from './commodity.js';
-import { hederaIdSchema, iso8601Schema, uuidSchema } from './common.js';
+import { commoditySchema, processingStageSchema } from './commodity';
+import { hederaIdSchema, iso8601Schema, uuidSchema } from './common';
 
 /**
  * A unit of commodity at a point in time that is meaningful to track as one.

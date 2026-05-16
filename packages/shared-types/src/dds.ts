@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { commoditySchema } from './commodity.js';
-import { countryCodeSchema, iso8601Schema, uuidSchema } from './common.js';
-import { plotGeometrySchema } from './geometry.js';
+import { commoditySchema } from './commodity';
+import { countryCodeSchema, iso8601Schema, uuidSchema } from './common';
+import { plotGeometrySchema } from './geometry';
 
 /**
  * Shamba's internal representation of an EUDR Due Diligence Statement (DDS).
