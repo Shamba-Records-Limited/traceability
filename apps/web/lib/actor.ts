@@ -4,17 +4,19 @@ import { schema } from '@shamba/db';
 import { actorRoleSchema, countryCodeSchema, type ActorRole } from '@shamba/shared-types';
 
 import { db } from './db';
+import { mintDid } from './did-issuer';
 
 const { actors, users } = schema;
 
 /**
- * Placeholder DID minted at actor creation. The did-issuer service lands in
- * a follow-up PR; until then every actor gets a `did:placeholder:<uuid>`
- * value so the `actors.did` NOT NULL UNIQUE constraint stays satisfied.
+ * Placeholder DID minted at actor creation. We insert the actor with a
+ * placeholder so the `actors.did NOT NULL UNIQUE` constraint stays
+ * satisfied even if the did-issuer service is unreachable. Immediately
+ * after the create transaction commits, `createActorForUser` calls the
+ * issuer and rotates the row to a real `did:hedera:<network>:<topicId>`.
  *
- * The did-issuer service iterates rows where `did` matches the placeholder
- * format and replaces them with a real `did:hedera:...` once the HCS
- * anchoring transaction lands.
+ * Placeholders that survive the rotation (issuer down at the time)
+ * persist until manual intervention or a future reconciler PR.
  */
 export const PLACEHOLDER_DID_PREFIX = 'did:placeholder:';
 
@@ -76,8 +78,13 @@ export class OnboardingValidationError extends Error {
  * user record in a single transaction. Throws OnboardingValidationError when
  * any input is malformed (callers should surface the issues to the form).
  *
- * The `did` column is filled with a placeholder; the did-issuer service
- * rotates it to a real `did:hedera:...` value when it runs.
+ * After the create transaction commits, the did-issuer service is called
+ * out-of-transaction to mint a real `did:hedera:<network>:<topicId>` for
+ * the new actor; the placeholder DID is then rotated to the real value
+ * via a small follow-up UPDATE. On issuer failure (network, timeout,
+ * non-2xx, malformed body) the placeholder is left in place and a
+ * background reconciler is expected to backfill — that reconciler is
+ * future work; until it ships, placeholder rows stay placeholder.
  */
 export async function createActorForUser(input: CreateActorInput): Promise<ActorProfile> {
   const issues: { path: string; message: string }[] = [];
@@ -108,7 +115,7 @@ export async function createActorForUser(input: CreateActorInput): Promise<Actor
     throw new OnboardingValidationError(issues);
   }
 
-  return db.transaction(async (tx) => {
+  const created = await db.transaction(async (tx) => {
     const [inserted] = await tx
       .insert(actors)
       .values({
@@ -135,4 +142,56 @@ export async function createActorForUser(input: CreateActorInput): Promise<Actor
 
     return inserted;
   });
+
+  // Post-commit DID mint. Same shape as the publisher integration in
+  // lib/plot.ts: run outside the transaction so a slow or unreachable
+  // issuer does not hold a database connection, and tolerate failure by
+  // leaving the placeholder DID in place. On success we rotate the row
+  // to the real DID with a single UPDATE; on backfill failure we keep
+  // the placeholder and log loudly (the on-chain mint already landed).
+  const mint = await mintDid({
+    actorId: created.id,
+    displayName: created.displayName,
+  });
+  if (mint) {
+    try {
+      const [rotated] = await db
+        .update(actors)
+        .set({ did: mint.did, updatedAt: new Date() })
+        .where(eq(actors.id, created.id))
+        .returning({
+          id: actors.id,
+          did: actors.did,
+          role: actors.role,
+          displayName: actors.displayName,
+          country: actors.country,
+          subnational: actors.subnational,
+        });
+      if (rotated) {
+        return rotated;
+      }
+      // The HCS mint landed but the UPDATE matched no rows (e.g. the actor
+      // row was deleted between insert and update). The on-chain DID exists
+      // but the DB still carries the placeholder; same operational concern
+      // as the catch-branch below — surface it so it's observable.
+      console.error('[actor] DID mint succeeded but rotation UPDATE returned no rows', {
+        actorId: created.id,
+        did: mint.did,
+        topicId: mint.topicId,
+      });
+    } catch (error) {
+      // The HCS mint landed but the rotation UPDATE failed. The placeholder
+      // DID survives on the row; future page loads will still show
+      // "Placeholder identifier" until manual intervention or the
+      // reconciler runs. Log loudly so this surfaces in production traces.
+      console.error('[actor] DID mint succeeded but placeholder rotation failed', {
+        actorId: created.id,
+        did: mint.did,
+        topicId: mint.topicId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return created;
 }

@@ -55,6 +55,43 @@ interface PublisherResponse {
 }
 
 /**
+ * Validate the publisher's response against the expected shape. Returning a
+ * narrowed value (rather than casting `response.json()` directly) means a
+ * future maintainer cannot accidentally trust an unverified property —
+ * everything below this function works against a real `PublisherResponse`.
+ */
+function parsePublisherResponse(raw: unknown): PublisherResponse | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (
+    typeof r.topicId !== 'string' ||
+    (typeof r.sequenceNumber !== 'number' && typeof r.sequenceNumber !== 'string') ||
+    typeof r.consensusTimestamp !== 'string' ||
+    typeof r.transactionId !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    topicId: r.topicId,
+    sequenceNumber: r.sequenceNumber as number | string,
+    consensusTimestamp: r.consensusTimestamp,
+    transactionId: r.transactionId,
+  };
+}
+
+/**
+ * `Date.parse` is intentionally lenient and accepts strings like `"1/2/2024"`.
+ * The publisher service emits RFC 3339 Nano via Go's `time.RFC3339Nano`, so
+ * a leading `YYYY-MM-DDTHH:MM:SS` prefix is the right shape to expect.
+ * Combine the regex with `Date.parse` to catch both "RFC 3339-shaped but
+ * invalid date" and "valid date but wrong format".
+ */
+function isRfc3339Timestamp(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) return false;
+  return Number.isFinite(Date.parse(value));
+}
+
+/**
  * Submit a `EventCommitment` (or any opaque payload) to a Hedera Consensus
  * Service topic. If `topicId` is the empty string, the publisher creates a
  * new topic and returns its id alongside the sequence number.
@@ -88,20 +125,14 @@ export async function publishEvent(
       return null;
     }
 
-    const body = (await response.json()) as PublisherResponse;
-    if (
-      typeof body !== 'object' ||
-      body === null ||
-      typeof body.topicId !== 'string' ||
-      typeof body.consensusTimestamp !== 'string' ||
-      typeof body.transactionId !== 'string'
-    ) {
+    const raw = (await response.json()) as unknown;
+    const body = parsePublisherResponse(raw);
+    if (!body) {
       console.warn('[hedera-publisher] malformed response body', { url });
       return null;
     }
 
-    const consensusEpoch = Date.parse(body.consensusTimestamp);
-    if (!Number.isFinite(consensusEpoch)) {
+    if (!isRfc3339Timestamp(body.consensusTimestamp)) {
       console.warn('[hedera-publisher] unparseable consensusTimestamp', {
         url,
         value: body.consensusTimestamp,
