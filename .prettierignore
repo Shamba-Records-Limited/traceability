@@ -1,0 +1,33 @@
+# Build artefacts
+node_modules
+.next
+.turbo
+.vercel
+dist
+build
+out
+coverage
+
+# Go
+vendor
+bin
+services/**/go.sum
+
+# Generated
+generated
+*.generated.ts
+*.generated.go
+**/typechain
+**/typechain-types
+**/artifacts
+**/cache
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Licenses (kept verbatim)
+LICENSE
+NOTICE
+CODE_OF_CONDUCT.md

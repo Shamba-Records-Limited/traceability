@@ -1,0 +1,151 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnp.cjs
+.yarn/install-state.gz
+jspm_packages/
+bower_components/
+
+# Package manager stores
+.pnpm-store/
+.npm
+.yarn-cache/
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.turbo/
+.svelte-kit/
+.docusaurus/
+storybook-static/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Go
+bin/
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Solidity / Hardhat / Foundry
+artifacts/
+cache/
+typechain/
+typechain-types/
+broadcast/
+forge-cache/
+.openzeppelin/
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# Environments
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+.env.staging
+!.env.example
+!.env.*.example
+
+# Vercel
+.vercel/
+
+# Hedera local artifacts
+.hedera/
+hedera-keys.json
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# AI / Editor session state (per-developer, never tracked)
+.claude/
+.cursor/
+.windsurfrules
+.aider*
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/extensions.json
+!.vscode/launch.json.example
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# JetBrains
+*.iml
+.idea_modules/
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Python (services may use Python tooling)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Generated
+generated/
+*.generated.ts
+*.generated.go
+
+# Local databases / temp
+*.sqlite
+*.sqlite3
+*.db
+tmp/
+.tmp/
+
+# Secrets we never commit
+secrets/
+*.secrets
+*-secrets.*
+*.private

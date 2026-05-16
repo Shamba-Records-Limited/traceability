@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest a new feature or improvement.
+title: "[feat] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the user or operator pain point you're seeing.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How might we solve it? Sketches and pseudo-code welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What did you think about and reject, and why?
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Who is this for?
+      multiple: true
+      options:
+        - Smallholder farmer
+        - Cooperative / aggregator
+        - Processor
+        - Exporter
+        - EU importer
+        - Auditor
+        - Competent authority
+        - Consumer
+        - Developer / integrator
+    validations:
+      required: true
+  - type: checkboxes
+    id: compliance
+    attributes:
+      label: Compliance relevance
+      options:
+        - label: This feature is required by EUDR or another regulation.
+        - label: This feature improves but is not required by a regulation.
+        - label: No regulatory relevance.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

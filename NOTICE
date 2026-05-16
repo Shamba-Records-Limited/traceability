@@ -1,0 +1,18 @@
+Shamba Traceability
+Copyright (c) 2026 Shamba Records Limited and contributors
+
+This product includes software developed by Shamba Records Limited
+(https://shambarecords.com) and the Shamba Traceability open-source community.
+
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+A copy of the license is included in the LICENSE file in the root of this
+repository, or you may obtain it at:
+
+    https://www.gnu.org/licenses/agpl-3.0.txt
+
+A separate commercial license is also available from Shamba Records Limited;
+see LICENSE-COMMERCIAL.md for details.
+
+This project depends on third-party open-source components. Their license
+notices are preserved in the source tree of each component (see node_modules,
+go.sum and package manifests).
