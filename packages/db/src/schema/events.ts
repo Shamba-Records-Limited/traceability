@@ -26,7 +26,7 @@ export const events = pgTable(
     payloadHash: char('payload_hash', { length: 64 }).notNull(),
     payloadCid: text('payload_cid'),
     onChainTopicId: text('on_chain_topic_id'),
-    onChainSequenceNumber: bigint('on_chain_sequence_number', { mode: 'number' }),
+    onChainSequenceNumber: bigint('on_chain_sequence_number', { mode: 'bigint' }),
     onChainConsensusTimestamp: timestamp('on_chain_consensus_timestamp', { withTimezone: true }),
     onChainTransactionId: text('on_chain_transaction_id'),
   },

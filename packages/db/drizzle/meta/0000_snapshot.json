@@ -1,5 +1,5 @@
 {
-  "id": "a5f79a93-8bcf-4b10-99b8-fa68ffc345eb",
+  "id": "9d255690-6c40-4634-9c7a-690b223f9afb",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -390,21 +390,6 @@
         }
       },
       "indexes": {
-        "batch_parents_child_idx": {
-          "name": "batch_parents_child_idx",
-          "columns": [
-            {
-              "expression": "child_batch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "batch_parents_parent_idx": {
           "name": "batch_parents_parent_idx",
           "columns": [
@@ -421,8 +406,32 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "batch_parents_child_batch_id_batches_id_fk": {
+          "name": "batch_parents_child_batch_id_batches_id_fk",
+          "tableFrom": "batch_parents",
+          "tableTo": "batches",
+          "columnsFrom": ["child_batch_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "batch_parents_parent_batch_id_batches_id_fk": {
+          "name": "batch_parents_parent_batch_id_batches_id_fk",
+          "tableFrom": "batch_parents",
+          "tableTo": "batches",
+          "columnsFrom": ["parent_batch_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "batch_parents_child_batch_id_parent_batch_id_pk": {
+          "name": "batch_parents_child_batch_id_parent_batch_id_pk",
+          "columns": ["child_batch_id", "parent_batch_id"]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -446,21 +455,6 @@
         }
       },
       "indexes": {
-        "batch_plots_batch_idx": {
-          "name": "batch_plots_batch_idx",
-          "columns": [
-            {
-              "expression": "batch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "batch_plots_plot_idx": {
           "name": "batch_plots_plot_idx",
           "columns": [
@@ -477,8 +471,32 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "batch_plots_batch_id_batches_id_fk": {
+          "name": "batch_plots_batch_id_batches_id_fk",
+          "tableFrom": "batch_plots",
+          "tableTo": "batches",
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "batch_plots_plot_id_plots_id_fk": {
+          "name": "batch_plots_plot_id_plots_id_fk",
+          "tableFrom": "batch_plots",
+          "tableTo": "plots",
+          "columnsFrom": ["plot_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "batch_plots_batch_id_plot_id_pk": {
+          "name": "batch_plots_batch_id_plot_id_pk",
+          "columns": ["batch_id", "plot_id"]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

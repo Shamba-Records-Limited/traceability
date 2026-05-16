@@ -55,12 +55,14 @@ CREATE TABLE "plots" (
 --> statement-breakpoint
 CREATE TABLE "batch_parents" (
 	"child_batch_id" uuid NOT NULL,
-	"parent_batch_id" uuid NOT NULL
+	"parent_batch_id" uuid NOT NULL,
+	CONSTRAINT "batch_parents_child_batch_id_parent_batch_id_pk" PRIMARY KEY("child_batch_id","parent_batch_id")
 );
 --> statement-breakpoint
 CREATE TABLE "batch_plots" (
 	"batch_id" uuid NOT NULL,
-	"plot_id" uuid NOT NULL
+	"plot_id" uuid NOT NULL,
+	CONSTRAINT "batch_plots_batch_id_plot_id_pk" PRIMARY KEY("batch_id","plot_id")
 );
 --> statement-breakpoint
 CREATE TABLE "batches" (
@@ -115,6 +117,10 @@ CREATE TABLE "events" (
 --> statement-breakpoint
 ALTER TABLE "deforestation_checks" ADD CONSTRAINT "deforestation_checks_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "plots" ADD CONSTRAINT "plots_owner_actor_id_actors_id_fk" FOREIGN KEY ("owner_actor_id") REFERENCES "public"."actors"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "batch_parents" ADD CONSTRAINT "batch_parents_child_batch_id_batches_id_fk" FOREIGN KEY ("child_batch_id") REFERENCES "public"."batches"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "batch_parents" ADD CONSTRAINT "batch_parents_parent_batch_id_batches_id_fk" FOREIGN KEY ("parent_batch_id") REFERENCES "public"."batches"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "batch_plots" ADD CONSTRAINT "batch_plots_batch_id_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "batch_plots" ADD CONSTRAINT "batch_plots_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "batches" ADD CONSTRAINT "batches_custodian_actor_id_actors_id_fk" FOREIGN KEY ("custodian_actor_id") REFERENCES "public"."actors"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoffs" ADD CONSTRAINT "handoffs_batch_id_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoffs" ADD CONSTRAINT "handoffs_from_actor_id_actors_id_fk" FOREIGN KEY ("from_actor_id") REFERENCES "public"."actors"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -126,9 +132,7 @@ CREATE INDEX "deforestation_checks_plot_idx" ON "deforestation_checks" USING btr
 CREATE INDEX "plots_owner_idx" ON "plots" USING btree ("owner_actor_id");--> statement-breakpoint
 CREATE INDEX "plots_country_idx" ON "plots" USING btree ("country");--> statement-breakpoint
 CREATE INDEX "plots_geometry_gix" ON "plots" USING gist ("geometry");--> statement-breakpoint
-CREATE INDEX "batch_parents_child_idx" ON "batch_parents" USING btree ("child_batch_id");--> statement-breakpoint
 CREATE INDEX "batch_parents_parent_idx" ON "batch_parents" USING btree ("parent_batch_id");--> statement-breakpoint
-CREATE INDEX "batch_plots_batch_idx" ON "batch_plots" USING btree ("batch_id");--> statement-breakpoint
 CREATE INDEX "batch_plots_plot_idx" ON "batch_plots" USING btree ("plot_id");--> statement-breakpoint
 CREATE INDEX "batches_commodity_idx" ON "batches" USING btree ("commodity");--> statement-breakpoint
 CREATE INDEX "batches_custodian_idx" ON "batches" USING btree ("custodian_actor_id");--> statement-breakpoint
