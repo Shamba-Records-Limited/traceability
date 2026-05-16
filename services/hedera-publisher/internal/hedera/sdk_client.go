@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	hiero "github.com/hiero-ledger/hiero-sdk-go/v2/sdk"
 
@@ -18,10 +19,19 @@ import (
 // All public methods accept a context but the underlying SDK does not yet
 // propagate it into the gRPC call; we still check ctx.Err() before kicking
 // off each transaction so callers can cancel queued work.
+//
+// Every write fetches the transaction record (not just the receipt) so the
+// caller receives the real consensus timestamp the network assigned. The
+// extra record query costs a small additional fee (~$0.0001 USD) and is the
+// correct primitive for audit-trail accuracy.
 type sdkClient struct {
-	cfg    *config.Config
-	logger *slog.Logger
-	client *hiero.Client
+	cfg         *config.Config
+	logger      *slog.Logger
+	client      *hiero.Client
+	operatorID  hiero.AccountID
+	operatorKey hiero.PrivateKey
+	treasuryID  hiero.AccountID
+	treasuryKey hiero.PrivateKey
 }
 
 func newSDKClient(cfg *config.Config, logger *slog.Logger) (Client, error) {
@@ -40,12 +50,30 @@ func newSDKClient(cfg *config.Config, logger *slog.Logger) (Client, error) {
 	}
 	hClient.SetOperator(operatorID, operatorKey)
 
+	treasuryID, err := hiero.AccountIDFromString(cfg.TreasuryID)
+	if err != nil {
+		return nil, fmt.Errorf("parse treasury id %q: %w", cfg.TreasuryID, err)
+	}
+	treasuryKey, err := hiero.PrivateKeyFromString(cfg.TreasuryPrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("parse treasury private key: %w", err)
+	}
+
 	logger.Info("hedera SDK client ready",
 		"network", string(cfg.Network),
 		"operator", cfg.OperatorID,
+		"treasury", cfg.TreasuryID,
 	)
 
-	return &sdkClient{cfg: cfg, logger: logger, client: hClient}, nil
+	return &sdkClient{
+		cfg:         cfg,
+		logger:      logger,
+		client:      hClient,
+		operatorID:  operatorID,
+		operatorKey: operatorKey,
+		treasuryID:  treasuryID,
+		treasuryKey: treasuryKey,
+	}, nil
 }
 
 func clientForNetwork(n config.Network) (*hiero.Client, error) {
@@ -83,15 +111,15 @@ func (c *sdkClient) SubmitMessage(ctx context.Context, topicID string, payload [
 	if err != nil {
 		return SubmitMessageResult{}, fmt.Errorf("submit message: %w", err)
 	}
-	receipt, err := resp.SetValidateStatus(true).GetReceipt(c.client)
+	record, err := resp.SetValidateStatus(true).GetRecord(c.client)
 	if err != nil {
-		return SubmitMessageResult{}, fmt.Errorf("submit message receipt: %w", err)
+		return SubmitMessageResult{}, fmt.Errorf("submit message record: %w", err)
 	}
 
 	return SubmitMessageResult{
 		TopicID:            tid.String(),
-		SequenceNumber:     int64(receipt.TopicSequenceNumber),
-		ConsensusTimestamp: resp.TransactionID.ValidStart.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"),
+		SequenceNumber:     int64(record.Receipt.TopicSequenceNumber),
+		ConsensusTimestamp: record.ConsensusTimestamp.UTC().Format(time.RFC3339Nano),
 		TransactionID:      resp.TransactionID.String(),
 	}, nil
 }
@@ -108,7 +136,13 @@ func (c *sdkClient) resolveOrCreateTopic(ctx context.Context, topicID string) (h
 		return hiero.TopicID{}, err
 	}
 
+	// Both admin and submit keys are set to the operator public key. Without
+	// the admin key, an HCS topic is immutable — its memo, keys, and expiry
+	// could never be updated — which is incompatible with operational reality
+	// (we need to be able to rotate keys, change the auto-renew account, and
+	// extend expiries over the lifetime of a long-lived batch topic).
 	createResp, err := hiero.NewTopicCreateTransaction().
+		SetAdminKey(c.client.GetOperatorPublicKey()).
 		SetSubmitKey(c.client.GetOperatorPublicKey()).
 		SetTopicMemo("shamba-traceability batch topic").
 		Execute(c.client)
@@ -145,17 +179,17 @@ func (c *sdkClient) MintNFT(ctx context.Context, tokenID, name, symbol string, m
 	if err != nil {
 		return MintNFTResult{}, fmt.Errorf("mint nft: %w", err)
 	}
-	receipt, err := resp.SetValidateStatus(true).GetReceipt(c.client)
+	record, err := resp.SetValidateStatus(true).GetRecord(c.client)
 	if err != nil {
-		return MintNFTResult{}, fmt.Errorf("mint nft receipt: %w", err)
+		return MintNFTResult{}, fmt.Errorf("mint nft record: %w", err)
 	}
-	if len(receipt.SerialNumbers) == 0 {
+	if len(record.Receipt.SerialNumbers) == 0 {
 		return MintNFTResult{}, errors.New("mint nft receipt did not include a serial number")
 	}
 
 	return MintNFTResult{
 		TokenID:       tid.String(),
-		SerialNumber:  receipt.SerialNumbers[0],
+		SerialNumber:  record.Receipt.SerialNumbers[0],
 		TransactionID: resp.TransactionID.String(),
 	}, nil
 }
@@ -172,15 +206,6 @@ func (c *sdkClient) resolveOrCreateCollection(ctx context.Context, tokenID, name
 		return hiero.TokenID{}, err
 	}
 
-	treasuryID, err := hiero.AccountIDFromString(c.cfg.TreasuryID)
-	if err != nil {
-		return hiero.TokenID{}, fmt.Errorf("parse treasury id %q: %w", c.cfg.TreasuryID, err)
-	}
-	treasuryKey, err := hiero.PrivateKeyFromString(c.cfg.TreasuryPrivateKey)
-	if err != nil {
-		return hiero.TokenID{}, fmt.Errorf("parse treasury private key: %w", err)
-	}
-
 	if name == "" {
 		name = "Shamba Lot"
 	}
@@ -193,14 +218,16 @@ func (c *sdkClient) resolveOrCreateCollection(ctx context.Context, tokenID, name
 		SetTokenSymbol(symbol).
 		SetTokenType(hiero.TokenTypeNonFungibleUnique).
 		SetSupplyType(hiero.TokenSupplyTypeInfinite).
-		SetTreasuryAccountID(treasuryID).
+		SetTreasuryAccountID(c.treasuryID).
 		SetAdminKey(c.client.GetOperatorPublicKey()).
 		SetSupplyKey(c.client.GetOperatorPublicKey()).
 		FreezeWith(c.client)
 	if err != nil {
 		return hiero.TokenID{}, fmt.Errorf("freeze token create: %w", err)
 	}
-	resp, err := tx.Sign(treasuryKey).Execute(c.client)
+	// Treasury must sign because it is the designated treasury account on the
+	// new collection. The operator signs implicitly via Execute as payer.
+	resp, err := tx.Sign(c.treasuryKey).Execute(c.client)
 	if err != nil {
 		return hiero.TokenID{}, fmt.Errorf("create token collection: %w", err)
 	}
@@ -232,19 +259,40 @@ func (c *sdkClient) TransferNFT(ctx context.Context, tokenID string, serial int6
 	}
 
 	nftID := hiero.NftID{TokenID: tid, SerialNumber: serial}
-	resp, err := hiero.NewTransferTransaction().
+	tx, err := hiero.NewTransferTransaction().
 		AddNftTransfer(nftID, from, to).
-		Execute(c.client)
+		FreezeWith(c.client)
+	if err != nil {
+		return TxResult{}, fmt.Errorf("freeze transfer: %w", err)
+	}
+
+	// Sender signature requirements:
+	//   - When the sender is the operator (the payer), Execute signs implicitly.
+	//   - When the sender is the treasury, sign explicitly with the treasury key.
+	//   - Any other sender is not currently supported; the BFF should ensure
+	//     the sender is either the operator or the treasury account, and add
+	//     additional signers in a follow-up when we wire user-custody.
+	switch {
+	case from.Equals(c.operatorID):
+		// no-op; payer signs on Execute.
+	case from.Equals(c.treasuryID):
+		tx = tx.Sign(c.treasuryKey)
+	default:
+		return TxResult{}, fmt.Errorf("transfer requires sender signature but sender %s is neither operator nor treasury", from.String())
+	}
+
+	resp, err := tx.Execute(c.client)
 	if err != nil {
 		return TxResult{}, fmt.Errorf("transfer nft: %w", err)
 	}
-	if _, err := resp.SetValidateStatus(true).GetReceipt(c.client); err != nil {
-		return TxResult{}, fmt.Errorf("transfer nft receipt: %w", err)
+	record, err := resp.SetValidateStatus(true).GetRecord(c.client)
+	if err != nil {
+		return TxResult{}, fmt.Errorf("transfer nft record: %w", err)
 	}
 
 	return TxResult{
 		TransactionID:      resp.TransactionID.String(),
-		ConsensusTimestamp: resp.TransactionID.ValidStart.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"),
+		ConsensusTimestamp: record.ConsensusTimestamp.UTC().Format(time.RFC3339Nano),
 	}, nil
 }
 
