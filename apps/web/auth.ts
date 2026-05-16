@@ -2,9 +2,8 @@ import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import NextAuth from 'next-auth';
 import Nodemailer from 'next-auth/providers/nodemailer';
 
-import { createClient } from '@shamba/db';
-
 import { authConfig } from './auth.config';
+import { db } from './lib/db';
 
 /**
  * Single source of truth for the Auth.js client. The Drizzle adapter is
@@ -12,13 +11,10 @@ import { authConfig } from './auth.config';
  * of `@shamba/db` are Node-only and would refuse to load on the Edge
  * runtime.
  *
- * The createClient factory also returns a `close()` function. We
- * intentionally do NOT call it here: the Auth.js handler instance is
- * long-lived and shares a single connection pool with the rest of the
- * Node-runtime route handlers in this app. Process exit cleans up
- * the underlying TCP socket.
+ * The Postgres connection lives in `lib/db.ts` and is shared with every
+ * other server-side caller in the app, so a single pool serves Auth.js,
+ * server actions, route handlers, and server components.
  */
-const { db } = createClient();
 
 // Treat empty-string env vars as unset. Templating tools (Vercel envs,
 // docker-compose, .env loaders) commonly write `EMAIL_SERVER_HOST=` when a
