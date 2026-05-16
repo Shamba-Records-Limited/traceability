@@ -1,0 +1,32 @@
+# Default owner — every PR is reviewed by the founding maintainer until
+# additional area owners are nominated per GOVERNANCE.md.
+*                                       @developerkevo
+
+# OSS governance and licence files require steward sign-off.
+/LICENSE                                @developerkevo
+/LICENSE-COMMERCIAL.md                  @developerkevo
+/NOTICE                                 @developerkevo
+/GOVERNANCE.md                          @developerkevo
+/CODE_OF_CONDUCT.md                     @developerkevo
+/CONTRIBUTING.md                        @developerkevo
+/SECURITY.md                            @developerkevo
+/MAINTAINERS.md                         @developerkevo
+
+# Architecture and compliance — high-bar review.
+/docs/adr/                              @developerkevo
+/docs/compliance/                       @developerkevo
+/docs/threat-model/                     @developerkevo
+
+# CI and security automation.
+/.github/workflows/                     @developerkevo
+/.github/CODEOWNERS                     @developerkevo
+/.github/dependabot.yml                 @developerkevo
+
+# Shared contracts — breaking changes need extra scrutiny.
+/packages/shared-types/                 @developerkevo
+/packages/contracts/                    @developerkevo
+/packages/eudr-schema/                  @developerkevo
+
+# Hedera and on-chain code paths.
+/services/hedera-publisher/             @developerkevo
+/services/did-issuer/                   @developerkevo

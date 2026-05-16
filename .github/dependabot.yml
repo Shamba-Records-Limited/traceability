@@ -1,0 +1,68 @@
+version: 2
+updates:
+  # Root and web app share a pnpm workspace; dependabot scans each manifest.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Africa/Nairobi
+    open-pull-requests-limit: 10
+    labels: [dependencies, javascript]
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+
+  - package-ecosystem: npm
+    directory: "/apps/web"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, javascript, web]
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+
+  - package-ecosystem: npm
+    directory: "/packages/shared-types"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, javascript, types]
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+
+  # Go service.
+  - package-ecosystem: gomod
+    directory: "/services/hedera-publisher"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, go, hedera]
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+
+  # GitHub Actions versions.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: chore(ci)
+      include: scope
+
+  # Dockerfile base images.
+  - package-ecosystem: docker
+    directory: "/services/hedera-publisher"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: chore(deps)
+      include: scope

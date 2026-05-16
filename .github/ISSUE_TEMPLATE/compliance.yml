@@ -1,0 +1,53 @@
+name: Compliance / regulatory update
+description: Report or propose a change driven by regulation, jurisdiction, or audit feedback.
+title: "[compliance] "
+labels: ["compliance", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for EUDR clarifications, country legality matrix updates, certification
+        schema changes, or audit findings. Cite sources where possible.
+  - type: textarea
+    id: regulation
+    attributes:
+      label: Which regulation, certification, or audit?
+      description: E.g. "EUDR Article 9(1)(d)", "Kenyan Coffee Act 2021", "Rainforest Alliance 2020".
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: What changed (or what needs to change in our platform)?
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source(s)
+      description: URLs, document references, communications with competent authorities.
+    validations:
+      required: true
+  - type: input
+    id: deadline
+    attributes:
+      label: Deadline (if any)
+      description: When must this be in place?
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocker for affected operators
+        - Required before next minor release
+        - Required before next major release
+        - Nice to have
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Shamba-Records-Limited/traceability/security/advisories/new
+    about: Report a security vulnerability privately. Do NOT open a public issue.
+  - name: Commercial or compliance enquiry
+    url: mailto:hello@shambarecords.com
+    about: For commercial-licence enquiries, partnership, or compliance support.
+  - name: Code of conduct concern
+    url: mailto:conduct@shambarecords.com
+    about: Report a Code of Conduct concern confidentially.
