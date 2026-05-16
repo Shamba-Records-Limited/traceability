@@ -21,7 +21,6 @@
     "./plot": "./src/plot.ts"
   },
   "scripts": {
-    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",

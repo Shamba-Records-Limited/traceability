@@ -32,6 +32,7 @@ const linearRingSchema = z
     (ring) => {
       const first = ring[0];
       const last = ring[ring.length - 1];
+      if (!first || !last) return false;
       return first[0] === last[0] && first[1] === last[1];
     },
     { message: 'first and last positions of a linear ring must be equal' },

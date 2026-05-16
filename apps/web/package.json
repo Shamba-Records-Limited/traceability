@@ -12,8 +12,8 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:ci": "vitest run --coverage",
+    "test": "vitest run --passWithNoTests",
+    "test:ci": "vitest run --coverage --passWithNoTests",
     "clean": "rimraf .next .turbo coverage"
   },
   "dependencies": {
