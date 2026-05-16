@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { hashSchema, iso8601Schema, ipfsCidSchema, uuidSchema } from './common.js';
+import { hashSchema, iso8601Schema, ipfsCidSchema, uuidSchema } from './common';
 
 /**
  * A chain-of-custody handoff between two actors. The receiver must confirm

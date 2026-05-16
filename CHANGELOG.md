@@ -36,6 +36,9 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 
 ### Changed
 
+- `apps/web`: upgraded to **Next.js 16** and **eslint-config-next 16**. `typedRoutes` promoted out of `experimental`. The `next lint` subcommand was removed in Next 16; `pnpm --filter @shamba/web lint` now runs `eslint .` directly against a new flat-config `eslint.config.mjs` that imports `eslint-config-next/core-web-vitals` and `eslint-config-next/typescript` as native flat-config modules. The legacy `.eslintrc.json` is gone. ESLint stays on v9 because `eslint-plugin-{import,jsx-a11y,react}` have not yet declared compatibility with ESLint 10; the v10 bump returns to the npm-major migrations tracker (issue #28) when those plugins catch up.
+- `packages/shared-types` and `packages/db`: internal imports drop the `.js` extension that Next 16's Turbopack could not resolve against `.ts` source files. The repo convention is now extensionless monorepo-internal imports across the board.
+- `packages/db`: `createClient` is build-tolerant — when `process.env.NEXT_PHASE === 'phase-production-build'` and `DATABASE_URL` is missing, it falls back to a clearly-fake placeholder URL so Next 16's build-time page-data collection succeeds without runtime credentials. The placeholder is never connected to in practice; postgres-js opens its socket lazily on first query.
 - `services/hedera-publisher`: Go module bumped to `1.25.7` (required by `github.com/hiero-ledger/hiero-sdk-go/v2`).
 - CI: `setup-go` action upgraded from Go `1.23` to `1.25`.
 - `Dockerfile`: base image upgraded from `golang:1.23-alpine` to `golang:1.25-alpine`.

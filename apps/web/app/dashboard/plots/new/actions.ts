@@ -80,19 +80,15 @@ export async function submitRegisterPlot(
     return { status: 'error', issues };
   }
 
-  const productionStartRaw = String(formData.get('productionStart') ?? '').trim();
-  const productionEndRaw = String(formData.get('productionEnd') ?? '').trim();
-  const productionStart = productionStartRaw ? new Date(productionStartRaw) : undefined;
-  const productionEnd = productionEndRaw ? new Date(productionEndRaw) : undefined;
-
+  // Production date inputs are captured by the form for forward
+  // compatibility but live on batches, not plots. They will be threaded
+  // through once batch creation lands.
   const input: RegisterPlotInput = {
     ownerActorId: actor.id,
     country: String(formData.get('country') ?? actor.country),
     subnational: String(formData.get('subnational') ?? '').trim() || undefined,
     commodities,
     geometry: (geometryParse as { ok: true; value: PlotGeometry }).value,
-    productionStart,
-    productionEnd,
   };
 
   try {

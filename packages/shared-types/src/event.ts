@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { hashSchema, hederaIdSchema, ipfsCidSchema, iso8601Schema, uuidSchema } from './common.js';
+import { hashSchema, hederaIdSchema, ipfsCidSchema, iso8601Schema, uuidSchema } from './common';
 
 /**
  * The on-chain (HCS) event vocabulary for a batch. Each event is a single HCS

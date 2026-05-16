@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { countryCodeSchema, iso8601Schema, uuidSchema } from './common.js';
-import { didSchema } from './identity.js';
+import { countryCodeSchema, iso8601Schema, uuidSchema } from './common';
+import { didSchema } from './identity';
 
 /**
  * Roles an actor can play in the chain of custody. An actor may have more

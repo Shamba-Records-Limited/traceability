@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { plotSchema } from './plot.js';
+import { plotSchema } from './plot';
 
 const baseValidPolygonPlot = {
   id: '11111111-1111-4111-8111-111111111111',
