@@ -4,11 +4,12 @@ import type { NextAuthConfig } from 'next-auth';
  * Edge-safe slice of the Auth.js configuration.
  *
  * `middleware.ts` runs on Vercel's Edge runtime, which cannot load Node-only
- * modules such as `postgres` (the @shamba/db driver). Splitting the config
- * keeps middleware execution lightweight: it only needs the providers list
- * (for callback URL validation) and the auth callback that decides which
- * routes are protected. The full configuration in `auth.ts` adds the
- * Drizzle adapter and Nodemailer provider, which are Node-only.
+ * modules such as `postgres` (the @shamba/db driver) or Nodemailer.
+ * Splitting the config keeps middleware execution lightweight: it carries
+ * only the page redirects and the `authorized` callback that decides which
+ * routes are gated. The real provider list and the Drizzle adapter live in
+ * `auth.ts` for Node-runtime route handlers; here `providers` is left
+ * intentionally empty (the type requires the field to be present).
  *
  * See: https://authjs.dev/getting-started/migrating-to-v5#edge-compatibility
  */

@@ -20,6 +20,24 @@ import { authConfig } from './auth.config';
  */
 const { db } = createClient();
 
+// Treat empty-string env vars as unset. Templating tools (Vercel envs,
+// docker-compose, .env loaders) commonly write `EMAIL_SERVER_HOST=` when a
+// value is absent rather than omitting the key entirely; nullish-coalescing
+// would let those empty strings through and Nodemailer would fail with an
+// unhelpful "no host" error. `||` collapses both undefined and "" to the
+// fallback.
+const emailHost = process.env.EMAIL_SERVER_HOST || 'localhost';
+const emailPortRaw = process.env.EMAIL_SERVER_PORT?.trim();
+const emailPort = emailPortRaw ? Number.parseInt(emailPortRaw, 10) : 1025;
+if (!Number.isFinite(emailPort) || emailPort <= 0 || emailPort > 65535) {
+  throw new Error(
+    `EMAIL_SERVER_PORT must be a TCP port between 1 and 65535, got ${process.env.EMAIL_SERVER_PORT!}`,
+  );
+}
+const emailUser = process.env.EMAIL_SERVER_USER || undefined;
+const emailPassword = process.env.EMAIL_SERVER_PASSWORD || undefined;
+const emailFrom = process.env.EMAIL_FROM || 'no-reply@shamba.local';
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: DrizzleAdapter(db),
@@ -27,17 +45,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Nodemailer({
       server: {
-        host: process.env.EMAIL_SERVER_HOST ?? 'localhost',
-        port: Number(process.env.EMAIL_SERVER_PORT ?? 1025),
-        auth:
-          process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD
-            ? {
-                user: process.env.EMAIL_SERVER_USER,
-                pass: process.env.EMAIL_SERVER_PASSWORD,
-              }
-            : undefined,
+        host: emailHost,
+        port: emailPort,
+        auth: emailUser && emailPassword ? { user: emailUser, pass: emailPassword } : undefined,
       },
-      from: process.env.EMAIL_FROM ?? 'no-reply@shamba.local',
+      from: emailFrom,
     }),
   ],
 });

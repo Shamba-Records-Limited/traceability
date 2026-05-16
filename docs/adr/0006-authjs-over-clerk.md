@@ -19,7 +19,7 @@ Use **Auth.js v5** (the framework formerly published as NextAuth.js) for off-cha
 Auth.js takes responsibility for:
 
 - Session management (secure HTTP-only cookies, JWT or database sessions).
-- Email magic-link sign-in (default for v0.x).
+- Email magic-link sign-in (the default first-party provider in Auth.js v5).
 - OAuth provider plumbing (GitHub, Google, etc.) when we need it.
 - Standard CSRF protection and callback URL validation.
 
@@ -29,7 +29,7 @@ The DID layer remains unchanged from ADR-0003: a separate service issues a `did:
 
 Easier:
 
-- Zero third-party signup required to run the stack locally — contributors can use the `nodemailer` provider against MailHog or a local SMTP server, or the Auth.js dev-only Credentials provider.
+- Zero third-party signup required to run the stack locally — contributors can use the `nodemailer` provider against the bundled Mailpit container or any local SMTP server, or the Auth.js dev-only Credentials provider.
 - The whole authentication surface is open-source (`MIT` licensed), so no vendor lock-in or contractual asymmetry against our AGPL-3.0 code.
 - One source of truth at the database layer: Auth.js's `users`, `accounts`, `sessions`, and `verificationTokens` tables live in `@shamba/db` alongside `actors`, with a foreign key from `users.actor_id` → `actors.id` once onboarding picks a role.
 - Standard adapter pattern means we can swap providers (passkeys, GitHub OAuth, enterprise SAML) without touching the actor model.
@@ -42,7 +42,7 @@ Harder:
 
 Risk:
 
-- **Auth.js v5 is in beta as of writing.** API surface is stable enough but minor releases may require adjustments. Mitigated by pinning to a specific minor and revisiting on each upgrade.
+- **Auth.js v5 is in beta as of writing.** API surface is stable enough but minor releases may require adjustments. Mitigated by pinning to an exact `next-auth` version (no caret range) in `apps/web/package.json` and revisiting on each upgrade.
 - **Magic-link UX for high-volume cooperative field officers** may friction if they share devices. We will offer an OAuth (GitHub) provider for technical users and a passkey provider as soon as it goes GA.
 
 ## Alternatives considered
