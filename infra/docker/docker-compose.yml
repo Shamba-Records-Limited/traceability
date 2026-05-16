@@ -54,6 +54,22 @@ services:
       retries: 10
       start_period: 30s
 
+  mailpit:
+    # Local SMTP catcher for Auth.js magic-link development. The web app sends
+    # mail to localhost:1025; the web UI for inspecting captured mail lives at
+    # http://localhost:8025.
+    image: axllent/mailpit:v1.21
+    container_name: shamba-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # web UI
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:8025/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:
