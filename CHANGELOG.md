@@ -30,6 +30,9 @@ Until version `1.0.0` is tagged, breaking changes may occur in any minor release
 - `packages/db`: Auth.js core tables (`users`, `accounts`, `sessions`, `verificationTokens`) and the `users.actor_id` foreign key to `actors`.
 - `infra/docker/docker-compose.yml`: Mailpit container catching outbound SMTP for local Auth.js magic-link development (web UI on :8025, SMTP on :1025).
 - `services/did-issuer`: new Go service that mints `did:hedera:<network>:<topicId>` identifiers. Each call creates a dedicated HCS topic and submits an initial W3C DID Core 1.0 document as the topic's first message; subsequent updates ride the same topic. Same mock-vs-real selection rule as `hedera-publisher` (operator credentials present → real mode). `POST /v1/dids/mint` + `/healthz` + `/readyz`. CI Go matrix extended to cover both services.
+- `apps/web`: end-to-end plot registration slice — `/dashboard/plots` lists actor-owned plots; `/dashboard/plots/new` captures commodity selection + GeoJSON polygon + country + optional production date range and persists the plot, deforestation check, and `plot_attested` event row in a single transaction. Polygon-vs-point invariant per EUDR Article 9(1)(d) is enforced both server-side (planar area estimator) and at the schema level (`plotSchema.superRefine`). Geometry lands in PostGIS as `geography(*, 4326)` via `ST_GeomFromText`.
+- `apps/web/lib/deforestation.ts`: pluggable provider interface with a mock implementation flagged so dashboards can recognise mock-backed decisions. The Global Forest Watch adapter lands as its own PR behind the same interface (per ADR-0004).
+- `packages/db`: `events.batch_id` is now nullable and `events.plot_id` is a new FK to `plots`. Lets plot-level events (`plot_attested`, `sample_recorded`) persist before any batch exists. Migration `0002_events_polymorphic_subject.sql`.
 
 ### Changed
 
