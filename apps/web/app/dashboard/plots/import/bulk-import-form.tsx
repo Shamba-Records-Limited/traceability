@@ -80,7 +80,7 @@ export function BulkImportForm({ sampleCsv }: { sampleCsv: string }) {
                     : 'border-red-200 bg-red-50 text-red-800'
                 }`}
               >
-                <span className="font-mono text-soil-600">row {row.rowNumber}</span>
+                <span className="font-mono text-soil-600">data row {row.rowNumber}</span>
                 {row.status === 'ok' ? (
                   <span className="ml-2">
                     plot <code>{row.plotId}</code>

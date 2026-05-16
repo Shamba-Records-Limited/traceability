@@ -10,7 +10,10 @@ export const metadata = {
   title: 'Bulk import plots',
 };
 
-const SAMPLE_CSV = `# country,commodities,geometry,subnational
+// Header line must NOT be commented out — papaparse strips `#` lines before
+// inferring the header. The first `#` line below is human guidance only.
+const SAMPLE_CSV = `# Example CSV — replace these rows with your data.
+country,commodities,geometry,subnational
 KE,coffee,"{""type"":""Polygon"",""coordinates"":[[[36.8,-1.3],[36.9,-1.3],[36.9,-1.2],[36.8,-1.2],[36.8,-1.3]]]}",Kiambu County
 KE,coffee;cocoa,"{""type"":""Point"",""coordinates"":[36.85,-1.25]}",`;
 

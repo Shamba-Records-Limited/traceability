@@ -110,7 +110,6 @@ export default async function PlotsPage() {
                         className="inline-flex items-center gap-1 rounded-full bg-leaf-50 px-2 py-0.5 font-medium text-leaf-700 hover:bg-leaf-100"
                       >
                         Committed to {plot.onChainTopicId}
-                        <span aria-hidden></span>
                       </a>
                     </p>
                   ) : (

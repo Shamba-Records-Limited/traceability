@@ -108,6 +108,8 @@ function parseGeometry(raw: string | undefined): PlotGeometry | { error: string 
  * future PR can introduce a bounded concurrency pool once we have
  * end-to-end latency data.
  */
+const REQUIRED_HEADERS = ['country', 'commodities', 'geometry'] as const;
+
 export async function importPlotsFromCsv(input: {
   ownerActorId: string;
   csv: string;
@@ -120,13 +122,52 @@ export async function importPlotsFromCsv(input: {
     transform: (value: string) => value.trim(),
   });
 
+  // Header validation up front: if the CSV is missing required columns the
+  // per-row "country is required" errors are misleading — the headers are
+  // wrong, not the data. Surface a single, clear failure so the operator
+  // fixes the header instead of every row.
+  const fields = parsed.meta.fields ?? [];
+  const missingHeaders = REQUIRED_HEADERS.filter((h) => !fields.includes(h));
+  if (missingHeaders.length > 0) {
+    return {
+      totalRows: 0,
+      succeeded: 0,
+      failed: 1,
+      rows: [
+        {
+          rowNumber: 0,
+          status: 'error',
+          issues: [
+            {
+              path: 'header',
+              message: `CSV header is missing required column(s): ${missingHeaders.join(', ')}. Expected: country, commodities, geometry, subnational (optional).`,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  // Surface non-fatal papaparse errors (delimiter detection, quote mismatches,
+  // etc.) as a leading report entry. We still attempt every parsed row.
   const rows: PlotImportRowResult[] = [];
+  if (parsed.errors.length > 0) {
+    rows.push({
+      rowNumber: 0,
+      status: 'error',
+      issues: parsed.errors.slice(0, 5).map((e) => ({
+        path: 'csv',
+        message: `${e.type}: ${e.message}${typeof e.row === 'number' ? ` (around row ${e.row + 1})` : ''}`,
+      })),
+    });
+  }
 
   for (const [index, raw] of (parsed.data ?? []).entries()) {
-    // CSV rows in the report are 1-indexed AND we account for the header row
-    // so an operator can correlate a complaint with their spreadsheet
-    // exactly (line numbers in the source file).
-    const rowNumber = index + 2;
+    // 1-indexed across data rows only (header and `#` comment lines are
+    // excluded). We intentionally do not promise spreadsheet line numbers
+    // here: `skipEmptyLines` and `comments: '#'` mean source-line numbers
+    // would drift whenever comments are interspersed.
+    const rowNumber = index + 1;
 
     const country = raw.country;
     if (!country) {

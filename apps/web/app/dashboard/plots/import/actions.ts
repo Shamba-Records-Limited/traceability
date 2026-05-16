@@ -37,10 +37,15 @@ export async function submitBulkImport(
     csv = await file.text();
   } else {
     csv = String(formData.get('csvText') ?? '');
-    if (csv.length > MAX_CSV_BYTES) {
+    // String.length counts UTF-16 code units; multi-byte text (any non-ASCII
+    // commodity name, place name, etc.) would let an oversized paste slip
+    // past a code-unit check. Measure the actual UTF-8 byte length so the
+    // cap matches the units in the error message and in MAX_CSV_BYTES.
+    const csvByteLength = Buffer.byteLength(csv, 'utf8');
+    if (csvByteLength > MAX_CSV_BYTES) {
       return {
         status: 'invalid',
-        message: `CSV is too large (${csv.length} bytes); limit is ${MAX_CSV_BYTES} bytes`,
+        message: `CSV is too large (${csvByteLength} bytes); limit is ${MAX_CSV_BYTES} bytes`,
       };
     }
   }
