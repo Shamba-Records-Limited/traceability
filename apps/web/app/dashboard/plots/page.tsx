@@ -24,6 +24,14 @@ function formatHectares(value: number): string {
   return `${value.toFixed(2)} ha`;
 }
 
+function hashscanTopicUrl(topicId: string): string {
+  const base = (process.env.NEXT_PUBLIC_HASHSCAN_BASE ?? 'https://hashscan.io/testnet').replace(
+    /\/$/,
+    '',
+  );
+  return `${base}/topic/${topicId}`;
+}
+
 export default async function PlotsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
@@ -85,6 +93,25 @@ export default async function PlotsPage() {
                     {plot.commodities.map((c) => COMMODITY_LABELS[c] ?? c).join(' · ')} ·{' '}
                     {formatHectares(plot.areaHectares)}
                   </p>
+                  {plot.onChainTopicId ? (
+                    <p className="mt-2 text-xs">
+                      <a
+                        href={hashscanTopicUrl(plot.onChainTopicId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full bg-leaf-50 px-2 py-0.5 font-medium text-leaf-700 hover:bg-leaf-100"
+                      >
+                        Committed to {plot.onChainTopicId}
+                        <span aria-hidden>↗</span>
+                      </a>
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-soil-500">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-soil-100 px-2 py-0.5 font-medium text-soil-700">
+                        Pending HCS commit
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <time dateTime={plot.registeredAt.toISOString()} className="text-xs text-soil-600">
                   {plot.registeredAt.toISOString().slice(0, 10)}
