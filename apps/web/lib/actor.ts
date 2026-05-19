@@ -32,6 +32,7 @@ export interface ActorProfile {
   displayName: string;
   country: string;
   subnational: string | null;
+  hederaAccountId: string | null;
 }
 
 /**
@@ -47,6 +48,7 @@ export async function getActorForUser(userId: string): Promise<ActorProfile | nu
       displayName: actors.displayName,
       country: actors.country,
       subnational: actors.subnational,
+      hederaAccountId: actors.hederaAccountId,
     })
     .from(users)
     .innerJoin(actors, eq(actors.id, users.actorId))
@@ -133,6 +135,7 @@ export async function createActorForUser(input: CreateActorInput): Promise<Actor
         displayName: actors.displayName,
         country: actors.country,
         subnational: actors.subnational,
+        hederaAccountId: actors.hederaAccountId,
       });
 
     if (!inserted) {
@@ -167,6 +170,7 @@ export async function createActorForUser(input: CreateActorInput): Promise<Actor
           displayName: actors.displayName,
           country: actors.country,
           subnational: actors.subnational,
+          hederaAccountId: actors.hederaAccountId,
         });
       if (rotated) {
         return rotated;

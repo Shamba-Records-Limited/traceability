@@ -10,7 +10,16 @@ import { publishEvent } from './hedera-publisher';
 import { mintBatchNft } from './hedera-mint';
 import { recordBatchOnChain } from './registry';
 
-const { actors, batches, batchPlots, batchParents, deforestationChecks, events, plots } = schema;
+const {
+  actors,
+  batches,
+  batchPlots,
+  batchParents,
+  deforestationChecks,
+  events,
+  mintRequests,
+  plots,
+} = schema;
 
 const BATCH_UNITS = ['kg', 'head', 'tonne', 'm3'] as const;
 export type BatchUnit = (typeof BATCH_UNITS)[number];
@@ -391,6 +400,17 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
       payloadHash: payloadHashInner,
     });
 
+    // Outbox: durable mint request that the reconciler can replay
+    // safely thanks to the publisher's idempotency key. Written inside
+    // the same transaction as the batch insert so the row survives
+    // even if the post-commit mint call never executes (e.g. server
+    // crashes between commit and the network call).
+    await tx.insert(mintRequests).values({
+      batchId: batchRow.id,
+      payloadHash: payloadHashInner,
+      idempotencyKey: `batch:${batchRow.id}:${payloadHashInner}`,
+    });
+
     const commitment = {
       v: 1 as const,
       type: 'batch_created' as const,
@@ -415,6 +435,10 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
     name: `Shamba Batch ${batchId.slice(0, 8)}`,
     symbol: 'SHAMBA-BATCH',
     metadata: { batchId, payloadHash, schemaVersion: 1 },
+    // Deterministic idempotency key — the publisher dedupes on this
+    // header so a happy-path mint + a later reconciler retry cannot
+    // produce two NFTs.
+    idempotencyKey: `batch:${batchId}:${payloadHash}`,
   };
   const mint = await mintBatchNft(mintInput);
   const publish = await publishEvent('', eventCommitment);
@@ -456,6 +480,13 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
                 updatedAt: new Date(),
               })
               .where(eq(batches.id, batchId));
+            // Mark the outbox row published so the reconciler skips
+            // it. Even if it didn't, the publisher's idempotency cache
+            // would replay the same NFT result.
+            await tx
+              .update(mintRequests)
+              .set({ status: 'published', publishedAt: new Date() })
+              .where(eq(mintRequests.batchId, batchId));
           }
           if (publish) {
             await tx

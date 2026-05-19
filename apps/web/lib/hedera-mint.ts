@@ -73,6 +73,16 @@ export interface MintBatchInput {
    * carrying batch id + payload hash, never the full batch payload.
    */
   metadata: unknown;
+  /**
+   * Idempotency key sent to the publisher as the `Idempotency-Key`
+   * header. The publisher's in-process cache reuses any cached mint
+   * result for the same key, closing the duplicate-NFT race: even if
+   * our retry loop calls the publisher twice for the same batch +
+   * payload, only one NFT lands on-chain. Recommended shape is
+   * `batch:<batchId>:<payloadHash>`; the outbox table picks that
+   * format. `undefined` skips the header (legacy behaviour).
+   */
+  idempotencyKey?: string;
 }
 
 export interface MintBatchResult {
@@ -129,11 +139,15 @@ export async function mintBatchNft(input: MintBatchInput): Promise<MintBatchResu
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), publisherTimeout());
 
+  const { idempotencyKey, ...bodyInput } = input;
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
+      headers,
+      body: JSON.stringify(bodyInput),
       signal: controller.signal,
     });
 

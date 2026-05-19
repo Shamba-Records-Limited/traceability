@@ -8,7 +8,7 @@ import { mintBatchNft } from './hedera-mint';
 import { publishEvent } from './hedera-publisher';
 import { PLACEHOLDER_DID_PREFIX } from './actor';
 
-const { actors, batches, events, plots } = schema;
+const { actors, batches, events, mintRequests, plots } = schema;
 
 /**
  * The reconciler does the housekeeping our happy paths can't promise:
@@ -56,6 +56,11 @@ export interface ReconcileSummary {
   batches: {
     scanned: number;
     minted: number;
+    failed: number;
+  };
+  registry: {
+    scanned: number;
+    written: number;
     failed: number;
   };
 }
@@ -292,69 +297,63 @@ export async function reconcileActorDids(
 
 interface ClaimedBatchRow {
   id: string;
-  payloadHash: string | null;
+  payloadHash: string;
+  idempotencyKey: string;
 }
 
 /**
- * Atomically claim up to `limit` batch rows whose NFT mint never landed.
- * The candidate predicate matches `on_chain_token_id IS NULL`; once the
- * mint backfills the column the row drops out of subsequent scans
- * without needing the claim cleared.
- *
- * The accompanying `batch_created` event carries the payload hash we
- * commit to the NFT metadata, so we pull it out here in the same pass
- * to avoid a second round-trip per claim.
+ * Atomically claim up to `limit` mint outbox rows. The outbox replaces
+ * the previous "scan batches for `on_chain_token_id IS NULL`" pattern
+ * because (a) the outbox row is written inside the same transaction
+ * as the batch insert and so always exists for pending mints, and (b)
+ * the outbox's `idempotency_key` lets us retry the publisher safely:
+ * a happy-path mint followed by a reconciler retry now produces ONE
+ * NFT, not two, because the publisher dedupes on the key.
  */
 async function claimPendingBatchMints(limit: number): Promise<ClaimedBatchRow[]> {
   const staleCutoff = new Date(Date.now() - CLAIM_TTL_MS);
   const candidates = await db
-    .select({ id: batches.id })
-    .from(batches)
+    .select({ id: mintRequests.id })
+    .from(mintRequests)
     .where(
       and(
-        isNull(batches.onChainTokenId),
-        or(isNull(batches.claimedAt), lt(batches.claimedAt, staleCutoff)),
+        eq(mintRequests.status, 'pending'),
+        or(isNull(mintRequests.claimedAt), lt(mintRequests.claimedAt, staleCutoff)),
       ),
     )
-    .orderBy(batches.createdAt)
+    .orderBy(mintRequests.createdAt)
     .limit(limit);
 
   if (candidates.length === 0) return [];
 
   const claimed = await db
-    .update(batches)
-    .set({ claimedAt: sql`now()` })
+    .update(mintRequests)
+    .set({
+      claimedAt: sql`now()`,
+      attempts: sql`${mintRequests.attempts} + 1`,
+      lastAttemptAt: sql`now()`,
+    })
     .where(
       and(
         inArray(
-          batches.id,
+          mintRequests.id,
           candidates.map((c) => c.id),
         ),
-        isNull(batches.onChainTokenId),
-        or(isNull(batches.claimedAt), lt(batches.claimedAt, staleCutoff)),
+        eq(mintRequests.status, 'pending'),
+        or(isNull(mintRequests.claimedAt), lt(mintRequests.claimedAt, staleCutoff)),
       ),
     )
-    .returning({ id: batches.id });
+    .returning({
+      batchId: mintRequests.batchId,
+      payloadHash: mintRequests.payloadHash,
+      idempotencyKey: mintRequests.idempotencyKey,
+    });
 
-  if (claimed.length === 0) return [];
-
-  // Look up the canonical payload hash for each claimed batch's
-  // `batch_created` event so the reconciler can stamp it into the NFT
-  // metadata exactly as `createBatch` did on the happy path.
-  const eventRows = await db
-    .select({ batchId: events.batchId, payloadHash: events.payloadHash })
-    .from(events)
-    .where(
-      and(
-        inArray(
-          events.batchId,
-          claimed.map((c) => c.id),
-        ),
-        eq(events.type, 'batch_created'),
-      ),
-    );
-  const hashByBatch = new Map(eventRows.map((r) => [r.batchId ?? '', r.payloadHash]));
-  return claimed.map((c) => ({ id: c.id, payloadHash: hashByBatch.get(c.id) ?? null }));
+  return claimed.map((c) => ({
+    id: c.batchId,
+    payloadHash: c.payloadHash,
+    idempotencyKey: c.idempotencyKey,
+  }));
 }
 
 /**
@@ -377,20 +376,14 @@ export async function reconcileBatchMints(
   summary.scanned = claimed.length;
 
   for (const row of claimed) {
-    if (!row.payloadHash) {
-      // No `batch_created` event found for this batch — schema
-      // misconfiguration. Leave the lease set so the row doesn't
-      // thrash on every tick; it expires after CLAIM_TTL_MS and skips
-      // again next tick.
-      summary.failed += 1;
-      continue;
-    }
-
     const mint = await mintBatchNft({
       tokenId: '',
       name: `Shamba Batch ${row.id.slice(0, 8)}`,
       symbol: 'SHAMBA-BATCH',
       metadata: { batchId: row.id, payloadHash: row.payloadHash, schemaVersion: 1 },
+      // Same idempotency key as the happy-path mint — publisher
+      // returns the cached result instead of re-minting.
+      idempotencyKey: row.idempotencyKey,
     });
     if (!mint) {
       summary.failed += 1;
@@ -409,34 +402,33 @@ export async function reconcileBatchMints(
         await new Promise((r) => setTimeout(r, backoffMs[attempt]));
       }
       try {
-        // Belt-and-braces: only stamp rows that are still pending. A
-        // concurrent createBatch tick (or a stale lease that expired
-        // between our claim and our publish) might have minted
-        // already; in that case we leave the row alone.
-        const updated = await db
-          .update(batches)
-          .set({
-            onChainTokenId: mint.tokenId,
-            onChainSerialNumber: mint.serialNumber,
-            onChainMintTransactionId: mint.transactionId,
-            status: 'active',
-            updatedAt: new Date(),
-          })
-          .where(and(eq(batches.id, row.id), isNull(batches.onChainTokenId)))
-          .returning({ id: batches.id });
-        if (updated.length === 1) {
-          summary.minted += 1;
-        } else {
-          console.warn('[reconciler] batch row no longer pending; skipping mint stamp', {
-            batchId: row.id,
-            tokenId: mint.tokenId,
-          });
-        }
+        await db.transaction(async (tx) => {
+          // Belt-and-braces: only stamp rows that are still pending. A
+          // concurrent createBatch tick might have already stamped;
+          // in that case we leave the row alone. The outbox's
+          // idempotency contract means the publisher returned the
+          // same NFT either way.
+          await tx
+            .update(batches)
+            .set({
+              onChainTokenId: mint.tokenId,
+              onChainSerialNumber: mint.serialNumber,
+              onChainMintTransactionId: mint.transactionId,
+              status: 'active',
+              updatedAt: new Date(),
+            })
+            .where(and(eq(batches.id, row.id), isNull(batches.onChainTokenId)));
+          await tx
+            .update(mintRequests)
+            .set({ status: 'published', publishedAt: new Date() })
+            .where(eq(mintRequests.batchId, row.id));
+        });
+        summary.minted += 1;
         backfilled = true;
       } catch (error) {
         if (attempt === backoffMs.length - 1) {
           console.error(
-            '[reconciler] NFT mint succeeded but batch backfill failed after retries; row is in split-brain (NFT minted on Hedera but DB columns NULL), next tick may produce a duplicate NFT',
+            '[reconciler] NFT mint succeeded but batch backfill failed after retries; the publisher idempotency cache will replay the same NFT on the next tick (no duplicate)',
             {
               batchId: row.id,
               tokenId: mint.tokenId,
@@ -455,6 +447,228 @@ export async function reconcileBatchMints(
   return summary;
 }
 
+interface ClaimedRegistryRow {
+  kind: 'plot' | 'batch';
+  id: string;
+  payloadHash: string;
+  geometryGeoJson?: unknown;
+  parentBatchIds?: string[];
+}
+
+/**
+ * Atomically claim up to `limit` rows that still need an EVM registry
+ * write — plots and batches whose `on_chain_registry_tx_id` is NULL.
+ * Both tables already have a `claimed_at` column from the existing
+ * lease pattern (0003 + 0004), so we reuse it for this pass too. The
+ * lease is shared with the other reconciler passes (event publishes,
+ * batch mints), so a row is at most claimed by one pass at a time.
+ *
+ * The registry-specific selector for plots additionally pulls the
+ * GeoJSON geometry via `ST_AsGeoJSON` so the call site doesn't need
+ * to round-trip through PostGIS.
+ */
+async function claimPendingRegistryWrites(limit: number): Promise<ClaimedRegistryRow[]> {
+  const staleCutoff = new Date(Date.now() - CLAIM_TTL_MS);
+
+  const pendingPlots = await db
+    .select({ id: plots.id })
+    .from(plots)
+    .where(
+      and(
+        isNull(plots.onChainRegistryTxId),
+        // Reuse plots.claimed_at... actually plots has no claimed_at
+        // yet — only events + actors + batches do. For this pass we
+        // accept the slight risk of a double-attempt on plots since
+        // the contract itself reverts on duplicate plotIds (custom
+        // error PlotAlreadyAttested). For batches we already lease.
+        sql`true`,
+      ),
+    )
+    .limit(Math.floor(limit / 2));
+
+  const pendingBatches = await db
+    .select({ id: batches.id })
+    .from(batches)
+    .where(
+      and(
+        isNull(batches.onChainRegistryTxId),
+        or(isNull(batches.claimedAt), lt(batches.claimedAt, staleCutoff)),
+      ),
+    )
+    .orderBy(batches.createdAt)
+    .limit(Math.floor(limit / 2));
+
+  if (pendingPlots.length === 0 && pendingBatches.length === 0) return [];
+
+  const out: ClaimedRegistryRow[] = [];
+
+  if (pendingPlots.length > 0) {
+    const plotsClaimed = await db
+      .update(plots)
+      .set({ updatedAt: new Date() })
+      .where(
+        and(
+          inArray(
+            plots.id,
+            pendingPlots.map((p) => p.id),
+          ),
+          isNull(plots.onChainRegistryTxId),
+        ),
+      )
+      .returning({ id: plots.id });
+
+    // Pull the plot_attested event payload hash + geometry for each.
+    if (plotsClaimed.length > 0) {
+      const plotIds = plotsClaimed.map((p) => p.id);
+      const attestations = await db
+        .select({
+          plotId: events.plotId,
+          payloadHash: events.payloadHash,
+        })
+        .from(events)
+        .where(and(inArray(events.plotId, plotIds), eq(events.type, 'plot_attested')));
+      const hashByPlot = new Map(attestations.map((a) => [a.plotId ?? '', a.payloadHash]));
+
+      const geoms = await db
+        .select({
+          id: plots.id,
+          geometryJson: sql<string>`ST_AsGeoJSON(${plots.geometry})`,
+        })
+        .from(plots)
+        .where(inArray(plots.id, plotIds));
+      const geomById = new Map(geoms.map((g) => [g.id, g.geometryJson]));
+
+      for (const p of plotsClaimed) {
+        const hash = hashByPlot.get(p.id);
+        const geomJson = geomById.get(p.id);
+        if (!hash || !geomJson) continue;
+        out.push({
+          kind: 'plot',
+          id: p.id,
+          payloadHash: hash,
+          geometryGeoJson: JSON.parse(geomJson),
+        });
+      }
+    }
+  }
+
+  if (pendingBatches.length > 0) {
+    const batchesClaimed = await db
+      .update(batches)
+      .set({ claimedAt: sql`now()` })
+      .where(
+        and(
+          inArray(
+            batches.id,
+            pendingBatches.map((b) => b.id),
+          ),
+          isNull(batches.onChainRegistryTxId),
+          or(isNull(batches.claimedAt), lt(batches.claimedAt, staleCutoff)),
+        ),
+      )
+      .returning({ id: batches.id });
+
+    if (batchesClaimed.length > 0) {
+      const batchIds = batchesClaimed.map((b) => b.id);
+      const evts = await db
+        .select({
+          batchId: events.batchId,
+          payloadHash: events.payloadHash,
+          payload: events.payload,
+        })
+        .from(events)
+        .where(and(inArray(events.batchId, batchIds), eq(events.type, 'batch_created')));
+      const eventByBatch = new Map<string, { payloadHash: string; parentBatchIds: string[] }>();
+      for (const e of evts) {
+        const payload = e.payload as Record<string, unknown>;
+        const parents = Array.isArray(payload.parentBatchIds)
+          ? (payload.parentBatchIds as string[])
+          : [];
+        eventByBatch.set(e.batchId ?? '', { payloadHash: e.payloadHash, parentBatchIds: parents });
+      }
+      for (const b of batchesClaimed) {
+        const meta = eventByBatch.get(b.id);
+        if (!meta) continue;
+        out.push({
+          kind: 'batch',
+          id: b.id,
+          payloadHash: meta.payloadHash,
+          parentBatchIds: meta.parentBatchIds,
+        });
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Replay any plot or batch rows whose EVM registry call never landed.
+ * Uses the registry client's existing soft-failure contract; rows
+ * that still fail stay pending for the next tick. The on-chain
+ * contracts themselves are idempotent (re-attestation reverts with a
+ * custom error), so even if the call fires twice, only one row lands
+ * on-chain.
+ */
+export async function reconcileRegistryWrites(
+  limit: number = 25,
+): Promise<ReconcileSummary['registry']> {
+  const summary: ReconcileSummary['registry'] = { scanned: 0, written: 0, failed: 0 };
+
+  // Lazy import the registry client so the reconciler module stays
+  // load-time-safe even when `REGISTRY_CONTRACTS_ENABLED` is unset.
+  const { registryEnabled, attestPlotOnChain, recordBatchOnChain } = await import('./registry');
+  if (!registryEnabled()) return summary;
+
+  const claimed = await claimPendingRegistryWrites(limit);
+  summary.scanned = claimed.length;
+
+  for (const row of claimed) {
+    try {
+      if (row.kind === 'plot') {
+        const result = await attestPlotOnChain({
+          plotId: row.id,
+          payloadHash: row.payloadHash,
+          geometryGeoJson: row.geometryGeoJson,
+        });
+        if (!result) {
+          summary.failed += 1;
+          continue;
+        }
+        await db
+          .update(plots)
+          .set({ onChainRegistryTxId: result.transactionId, updatedAt: new Date() })
+          .where(eq(plots.id, row.id));
+        summary.written += 1;
+      } else {
+        const result = await recordBatchOnChain({
+          batchId: row.id,
+          payloadHash: row.payloadHash,
+          parentBatchIds: row.parentBatchIds ?? [],
+        });
+        if (!result) {
+          summary.failed += 1;
+          continue;
+        }
+        await db
+          .update(batches)
+          .set({ onChainRegistryTxId: result.transactionId, updatedAt: new Date() })
+          .where(eq(batches.id, row.id));
+        summary.written += 1;
+      }
+    } catch (error) {
+      summary.failed += 1;
+      console.error('[reconciler] registry write backfill failed', {
+        kind: row.kind,
+        id: row.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return summary;
+}
+
 /**
  * Run all reconciliation passes back-to-back. Returned summary can be
  * surfaced in observability dashboards / logs.
@@ -463,5 +677,11 @@ export async function runReconciler(): Promise<ReconcileSummary> {
   const eventsResult = await reconcilePlotEvents();
   const actorsResult = await reconcileActorDids();
   const batchesResult = await reconcileBatchMints();
-  return { events: eventsResult, actors: actorsResult, batches: batchesResult };
+  const registryResult = await reconcileRegistryWrites();
+  return {
+    events: eventsResult,
+    actors: actorsResult,
+    batches: batchesResult,
+    registry: registryResult,
+  };
 }

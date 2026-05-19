@@ -105,6 +105,23 @@ export default async function DashboardPage() {
 
       <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
         <div>
+          <h2 className="text-lg font-semibold text-soil-900">Hedera wallet</h2>
+          <p className="mt-1 text-sm text-soil-700">
+            Link your Hedera account id (
+            <code className="font-mono">{actor.hederaAccountId ?? '0.0.&lt;num&gt;'}</code>) so
+            on-chain HTS NFT transfers can land in your custody at handoff acceptance time.
+          </p>
+        </div>
+        <a
+          href="/dashboard/wallet"
+          className="inline-flex h-10 shrink-0 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
+        >
+          {actor.hederaAccountId ? 'Update wallet' : 'Link wallet'}
+        </a>
+      </section>
+
+      <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
+        <div>
           <h2 className="text-lg font-semibold text-soil-900">Handoffs</h2>
           <p className="mt-1 text-sm text-soil-700">
             Two-party custody transfers between actors. Propose from a batch, the receiver accepts
