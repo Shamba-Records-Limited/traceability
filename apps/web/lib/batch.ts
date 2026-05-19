@@ -253,6 +253,7 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
   // and verdict is false.
   const checks = await db
     .select({
+      id: deforestationChecks.id,
       plotId: deforestationChecks.plotId,
       performedAt: deforestationChecks.performedAt,
       deforestationDetected: deforestationChecks.deforestationDetected,
@@ -260,7 +261,11 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
     })
     .from(deforestationChecks)
     .where(inArray(deforestationChecks.plotId, sourcePlotIds))
-    .orderBy(desc(deforestationChecks.performedAt));
+    // `performedAt` resolution is milliseconds; ties are possible (especially
+    // for the mock provider that stamps `new Date()` and could be invoked in
+    // a tight loop). Tie-break on `id DESC` so the "latest" pick is
+    // deterministic across runs.
+    .orderBy(desc(deforestationChecks.performedAt), desc(deforestationChecks.id));
 
   const latestByPlot = new Map<string, (typeof checks)[number]>();
   for (const c of checks) {
@@ -414,42 +419,70 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
   const publish = await publishEvent('', eventCommitment);
 
   if (mint || publish) {
-    try {
-      await db.transaction(async (tx) => {
-        if (mint) {
-          await tx
-            .update(batches)
-            .set({
-              onChainTokenId: mint.tokenId,
-              onChainSerialNumber: mint.serialNumber,
-              onChainMintTransactionId: mint.transactionId,
-              status: 'active',
-              updatedAt: new Date(),
-            })
-            .where(eq(batches.id, batchId));
+    // The on-chain calls already landed. If the DB backfill fails we
+    // would otherwise leave the row pending and let the reconciler
+    // re-mint / re-publish — which would create a duplicate NFT and a
+    // duplicate HCS message because neither the publisher nor the HCS
+    // submit are idempotent today. Mitigate by retrying the local
+    // transaction with bounded backoff before giving up. A loud error
+    // log surfaces the split-brain case (rare: requires three DB
+    // failures in a row right after a successful on-chain call). The
+    // durable fix is a mint-requests outbox keyed by batchId +
+    // payloadHash + publisher-side dedup; tracked as a follow-up.
+    let backfilled = false;
+    const backoffMs = [0, 200, 800];
+    for (let attempt = 0; attempt < backoffMs.length && !backfilled; attempt += 1) {
+      if (backoffMs[attempt]! > 0) {
+        await new Promise((r) => setTimeout(r, backoffMs[attempt]));
+      }
+      try {
+        await db.transaction(async (tx) => {
+          if (mint) {
+            await tx
+              .update(batches)
+              .set({
+                onChainTokenId: mint.tokenId,
+                onChainSerialNumber: mint.serialNumber,
+                onChainMintTransactionId: mint.transactionId,
+                status: 'active',
+                updatedAt: new Date(),
+              })
+              .where(eq(batches.id, batchId));
+          }
+          if (publish) {
+            await tx
+              .update(events)
+              .set({
+                onChainTopicId: publish.topicId,
+                onChainSequenceNumber: publish.sequenceNumber,
+                onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
+                onChainTransactionId: publish.transactionId,
+              })
+              .where(eq(events.id, eventId));
+            await tx
+              .update(batches)
+              .set({ onChainTopicId: publish.topicId, updatedAt: new Date() })
+              .where(eq(batches.id, batchId));
+          }
+        });
+        backfilled = true;
+      } catch (error) {
+        if (attempt === backoffMs.length - 1) {
+          console.error(
+            '[batch] on-chain commit succeeded but DB backfill failed after retries; row is in split-brain (NFT minted on Hedera but DB columns NULL), reconciler will retry and may produce a duplicate NFT',
+            {
+              batchId,
+              eventId,
+              mintedTokenId: mint?.tokenId,
+              mintedSerial: mint?.serialNumber.toString(),
+              mintTransactionId: mint?.transactionId,
+              publishTopicId: publish?.topicId,
+              attempts: backoffMs.length,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
         }
-        if (publish) {
-          await tx
-            .update(events)
-            .set({
-              onChainTopicId: publish.topicId,
-              onChainSequenceNumber: publish.sequenceNumber,
-              onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
-              onChainTransactionId: publish.transactionId,
-            })
-            .where(eq(events.id, eventId));
-          await tx
-            .update(batches)
-            .set({ onChainTopicId: publish.topicId, updatedAt: new Date() })
-            .where(eq(batches.id, batchId));
-        }
-      });
-    } catch (error) {
-      console.error('[batch] on-chain commit succeeded but DB backfill failed', {
-        batchId,
-        eventId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      }
     }
   }
 
@@ -550,6 +583,7 @@ export async function listEligibleSourcePlotsForActor(custodianActorId: string):
 
   const checks = await db
     .select({
+      id: deforestationChecks.id,
       plotId: deforestationChecks.plotId,
       performedAt: deforestationChecks.performedAt,
       deforestationDetected: deforestationChecks.deforestationDetected,
@@ -561,7 +595,9 @@ export async function listEligibleSourcePlotsForActor(custodianActorId: string):
         ownPlots.map((p) => p.id),
       ),
     )
-    .orderBy(desc(deforestationChecks.performedAt));
+    // Mirror the tiebreaker from `createBatch` so the eligible-plots
+    // listing agrees with what the validation layer accepts.
+    .orderBy(desc(deforestationChecks.performedAt), desc(deforestationChecks.id));
 
   const latestByPlot = new Map<string, (typeof checks)[number]>();
   for (const c of checks) {

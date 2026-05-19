@@ -20,17 +20,34 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 describe('mintBatchNft', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   let originalFetch: typeof globalThis.fetch;
+  let originalEnv: { url: string | undefined; timeout: string | undefined };
 
   beforeEach(() => {
     fetchMock = vi.fn();
     originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    // Snapshot the relevant env vars so each test sees a clean slate and
+    // the suite cannot leak state into sibling files.
+    originalEnv = {
+      url: process.env.HEDERA_PUBLISHER_URL,
+      timeout: process.env.HEDERA_PUBLISHER_TIMEOUT_MS,
+    };
     process.env.HEDERA_PUBLISHER_URL = 'https://publisher.example';
     delete process.env.HEDERA_PUBLISHER_TIMEOUT_MS;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalEnv.url === undefined) {
+      delete process.env.HEDERA_PUBLISHER_URL;
+    } else {
+      process.env.HEDERA_PUBLISHER_URL = originalEnv.url;
+    }
+    if (originalEnv.timeout === undefined) {
+      delete process.env.HEDERA_PUBLISHER_TIMEOUT_MS;
+    } else {
+      process.env.HEDERA_PUBLISHER_TIMEOUT_MS = originalEnv.timeout;
+    }
   });
 
   it('POSTs to /v1/batches/mint with the supplied tokenId, name, symbol, metadata', async () => {

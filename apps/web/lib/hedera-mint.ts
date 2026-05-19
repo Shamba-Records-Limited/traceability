@@ -4,13 +4,28 @@
  * (optionally) to mint subsequent serials under the same collection token.
  *
  * Per ADR-0002 each batch is committed on-chain via two artefacts:
- *   1. An HTS NFT carrying compact, append-only metadata (commodity,
+ *   1. An HTS NFT whose on-chain metadata is a compact reference
+ *      (`{ batchId, payloadHash, schemaVersion }`). Hedera caps NFT
+ *      metadata at ~100 bytes, so the full batch payload (commodity,
  *      processing stage, production window, source plot hashes, lineage
- *      parent hashes). Owned by the custodian, transferred on handoff.
- *   2. An HCS event stream of `EventCommitment` records under the batch's
- *      topic. Handled by `publishEvent` in `./hedera-publisher.ts`.
+ *      parent hashes) lives off-chain in `events.payload` for the
+ *      paired `batch_created` event; the `payloadHash` on-chain commits
+ *      to that full payload byte-for-byte. The NFT itself is owned by
+ *      the custodian and transferred on handoff.
+ *   2. An HCS event stream of `EventCommitment` records under the
+ *      batch's topic. Handled by `publishEvent` in
+ *      `./hedera-publisher.ts`.
  *
  * This client covers (1) only.
+ *
+ * KNOWN LIMITATION (idempotency). The publisher does not currently honour
+ * an idempotency key. If a mint succeeds at the publisher but the DB
+ * backfill in `createBatch` fails, the reconciler will retry and mint a
+ * second NFT for the same batch. `createBatch` and `reconcileBatchMints`
+ * mitigate by retrying the backfill transaction with bounded backoff
+ * before giving up. The durable fix — a mint-requests outbox keyed by
+ * batchId + payloadHash, paired with publisher-side dedup — is tracked
+ * as a follow-up.
  *
  * The client fails soft: when the publisher is unreachable, times out,
  * returns a non-2xx, or returns a malformed body, `mintBatchNft` returns

@@ -397,37 +397,58 @@ export async function reconcileBatchMints(
       continue;
     }
 
-    try {
-      // Belt-and-braces: only stamp rows that are still pending. A
-      // concurrent createBatch tick (or a stale lease that expired
-      // between our claim and our publish) might have minted already;
-      // in that case we leave the row alone.
-      const updated = await db
-        .update(batches)
-        .set({
-          onChainTokenId: mint.tokenId,
-          onChainSerialNumber: mint.serialNumber,
-          onChainMintTransactionId: mint.transactionId,
-          status: 'active',
-          updatedAt: new Date(),
-        })
-        .where(and(eq(batches.id, row.id), isNull(batches.onChainTokenId)))
-        .returning({ id: batches.id });
-      if (updated.length === 1) {
-        summary.minted += 1;
-      } else {
-        console.warn('[reconciler] batch row no longer pending; skipping mint stamp', {
-          batchId: row.id,
-          tokenId: mint.tokenId,
-        });
+    // Bounded backfill retries — same rationale as `createBatch`: the
+    // mint already landed on-chain, so a DB write failure here would
+    // otherwise leave the row pending and trigger ANOTHER mint on the
+    // next tick (duplicating the NFT). Retry the local UPDATE with
+    // backoff before giving up.
+    let backfilled = false;
+    const backoffMs = [0, 200, 800];
+    for (let attempt = 0; attempt < backoffMs.length && !backfilled; attempt += 1) {
+      if (backoffMs[attempt]! > 0) {
+        await new Promise((r) => setTimeout(r, backoffMs[attempt]));
       }
-    } catch (error) {
-      console.error('[reconciler] NFT mint succeeded but batch backfill failed', {
-        batchId: row.id,
-        tokenId: mint.tokenId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      summary.failed += 1;
+      try {
+        // Belt-and-braces: only stamp rows that are still pending. A
+        // concurrent createBatch tick (or a stale lease that expired
+        // between our claim and our publish) might have minted
+        // already; in that case we leave the row alone.
+        const updated = await db
+          .update(batches)
+          .set({
+            onChainTokenId: mint.tokenId,
+            onChainSerialNumber: mint.serialNumber,
+            onChainMintTransactionId: mint.transactionId,
+            status: 'active',
+            updatedAt: new Date(),
+          })
+          .where(and(eq(batches.id, row.id), isNull(batches.onChainTokenId)))
+          .returning({ id: batches.id });
+        if (updated.length === 1) {
+          summary.minted += 1;
+        } else {
+          console.warn('[reconciler] batch row no longer pending; skipping mint stamp', {
+            batchId: row.id,
+            tokenId: mint.tokenId,
+          });
+        }
+        backfilled = true;
+      } catch (error) {
+        if (attempt === backoffMs.length - 1) {
+          console.error(
+            '[reconciler] NFT mint succeeded but batch backfill failed after retries; row is in split-brain (NFT minted on Hedera but DB columns NULL), next tick may produce a duplicate NFT',
+            {
+              batchId: row.id,
+              tokenId: mint.tokenId,
+              serial: mint.serialNumber.toString(),
+              mintTransactionId: mint.transactionId,
+              attempts: backoffMs.length,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+          summary.failed += 1;
+        }
+      }
     }
   }
 
