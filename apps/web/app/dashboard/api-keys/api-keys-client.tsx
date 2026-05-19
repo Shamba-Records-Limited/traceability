@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 
-import { API_SCOPES, type ApiScope } from '../../../lib/api-auth';
+import { API_SCOPES, type ApiScope } from '../../../lib/api-scopes';
 
 import { submitCreateKey, submitRevokeKey, type CreateState, type RevokeState } from './actions';
 

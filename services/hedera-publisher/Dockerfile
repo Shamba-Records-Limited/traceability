@@ -3,7 +3,10 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 
-COPY go.mod ./
+# Copy module manifests first so `go mod download` is cached when only
+# source code changes. The downloads themselves are not in the final
+# image — only the compiled binary travels.
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .

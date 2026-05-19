@@ -1,4 +1,3 @@
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ExternalLink, Hourglass, LandPlot, MapPin, Sprout, Upload } from 'lucide-react';
@@ -9,10 +8,7 @@ import { getActorForUser } from '../../../lib/actor';
 import { listPlotsForActor } from '../../../lib/plot';
 import { Badge } from '../../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
-
-const PlotMap = dynamic(() => import('../../../components/geo/plot-map').then((m) => m.PlotMap), {
-  ssr: false,
-});
+import { PlotMapWrapper } from '../../../components/geo/plot-map-wrapper';
 
 export const metadata = {
   title: 'Plots',
@@ -174,7 +170,7 @@ export default async function PlotsPage() {
                 </p>
               </CardHeader>
               <CardContent>
-                <PlotMap geometries={geometries} height={420} />
+                <PlotMapWrapper geometries={geometries} height={420} />
               </CardContent>
             </Card>
           </section>
