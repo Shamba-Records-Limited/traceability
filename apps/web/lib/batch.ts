@@ -8,6 +8,7 @@ import { type Commodity, commoditySchema, processingStageSchema } from '@shamba/
 import { db } from './db';
 import { publishEvent } from './hedera-publisher';
 import { mintBatchNft } from './hedera-mint';
+import { recordBatchOnChain } from './registry';
 
 const { actors, batches, batchPlots, batchParents, deforestationChecks, events, plots } = schema;
 
@@ -417,8 +418,15 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
   };
   const mint = await mintBatchNft(mintInput);
   const publish = await publishEvent('', eventCommitment);
+  // EVM registry record (ADR-0008). No-op when the registry is
+  // disabled in this environment or the call soft-fails.
+  const registry = await recordBatchOnChain({
+    batchId,
+    payloadHash,
+    parentBatchIds,
+  });
 
-  if (mint || publish) {
+  if (mint || publish || registry) {
     // The on-chain calls already landed. If the DB backfill fails we
     // would otherwise leave the row pending and let the reconciler
     // re-mint / re-publish — which would create a duplicate NFT and a
@@ -462,6 +470,12 @@ export async function createBatch(input: CreateBatchInput): Promise<CreatedBatch
             await tx
               .update(batches)
               .set({ onChainTopicId: publish.topicId, updatedAt: new Date() })
+              .where(eq(batches.id, batchId));
+          }
+          if (registry) {
+            await tx
+              .update(batches)
+              .set({ onChainRegistryTxId: registry.transactionId, updatedAt: new Date() })
               .where(eq(batches.id, batchId));
           }
         });

@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"sync/atomic"
@@ -34,6 +35,17 @@ type Client interface {
 	// TransferNFT transfers ownership of a serial-numbered NFT from sender to receiver.
 	TransferNFT(ctx context.Context, tokenID string, serial int64, fromAccount, toAccount string) (TxResult, error)
 
+	// ExecuteContract invokes `functionSelector` on the supplied Hedera contract,
+	// passing the already-ABI-encoded `args` bytes. Returns the transaction id
+	// + consensus timestamp; the deployed contract's emitted events are read
+	// off the mirror node by the integrating client (we don't surface them
+	// here because gas-cost-of-record varies per contract and the publisher
+	// stays single-shot).
+	//
+	// `contractID` accepts Hedera's `0.0.<num>` form OR a 0x-prefixed EVM
+	// address; the implementation translates as needed.
+	ExecuteContract(ctx context.Context, contractID, functionSelector string, args []byte, gasLimit int64) (ContractCallResult, error)
+
 	// Close releases any held resources.
 	Close() error
 }
@@ -57,6 +69,16 @@ type MintNFTResult struct {
 type TxResult struct {
 	TransactionID      string `json:"transactionId"`
 	ConsensusTimestamp string `json:"consensusTimestamp"`
+}
+
+// ContractCallResult is returned by ExecuteContract. `GasUsed` is informational
+// and reflects the network's reported gas consumption; the publisher does not
+// charge it back to the caller because the operator account pays.
+type ContractCallResult struct {
+	ContractID         string `json:"contractId"`
+	TransactionID      string `json:"transactionId"`
+	ConsensusTimestamp string `json:"consensusTimestamp"`
+	GasUsed            int64  `json:"gasUsed"`
 }
 
 // NewClient returns the appropriate client implementation based on configuration.
@@ -111,6 +133,22 @@ func (m *mockClient) TransferNFT(_ context.Context, _ string, _ int64, _, _ stri
 	return TxResult{
 		TransactionID:      id,
 		ConsensusTimestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	}, nil
+}
+
+func (m *mockClient) ExecuteContract(_ context.Context, contractID, _ string, args []byte, _ int64) (ContractCallResult, error) {
+	hash := sha256.Sum256(args)
+	if contractID == "" {
+		// Mirror the real SDK's behaviour: an explicit contract id is required.
+		// Returning an error keeps mock + real parity instead of papering over
+		// the misuse with a synthetic id.
+		return ContractCallResult{}, fmt.Errorf("contractID is required")
+	}
+	return ContractCallResult{
+		ContractID:         contractID,
+		TransactionID:      "mock-tx-" + hex.EncodeToString(hash[:8]),
+		ConsensusTimestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		GasUsed:            50_000,
 	}, nil
 }
 

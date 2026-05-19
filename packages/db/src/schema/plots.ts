@@ -39,6 +39,14 @@ export const plots = pgTable(
     geometry: geography({ type: 'GEOMETRY', srid: 4326 })('geometry').notNull(),
     areaHectares: doublePrecision('area_hectares').notNull(),
     onChainCommitmentTopicId: text('on_chain_commitment_topic_id'),
+    /**
+     * Hedera EVM transaction id from a successful `PlotRegistry.attestPlot`
+     * call (the contract registry layered on top of the HCS commitment
+     * per ADR-0008). `null` if the registry is disabled in this
+     * environment OR the call soft-failed and is pending a reconciler
+     * retry.
+     */
+    onChainRegistryTxId: text('on_chain_registry_tx_id'),
     registeredAt: timestamp('registered_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

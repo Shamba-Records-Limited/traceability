@@ -296,6 +296,101 @@ func (c *sdkClient) TransferNFT(ctx context.Context, tokenID string, serial int6
 	}, nil
 }
 
+// ExecuteContract invokes `functionSelector(args...)` on the supplied contract
+// via the native Hedera SDK's ContractExecuteTransaction. We use the SDK path
+// instead of the JSON-RPC relay because (a) we already pay for an operator
+// account in HBAR and the SDK shares signing with HCS/HTS, (b) the SDK gives
+// us a real consensus timestamp and Hedera transaction id that joins cleanly
+// against the rest of the audit trail.
+//
+// `contractID` accepts both Hedera's `0.0.<num>` form and a 0x-prefixed EVM
+// address; the SDK's ContractID parser handles either. `args` MUST be
+// ABI-encoded by the caller — the publisher does not own ABI knowledge.
+func (c *sdkClient) ExecuteContract(ctx context.Context, contractID, functionSelector string, args []byte, gasLimit int64) (ContractCallResult, error) {
+	if err := ctx.Err(); err != nil {
+		return ContractCallResult{}, err
+	}
+	if contractID == "" {
+		return ContractCallResult{}, errors.New("contractID is required")
+	}
+	if functionSelector == "" {
+		return ContractCallResult{}, errors.New("functionSelector is required")
+	}
+	if gasLimit <= 0 {
+		// Hedera's contract calls require a non-trivial gas limit. 500k is a
+		// safe default for the simple append-only writes our registry
+		// contracts do; complex calls should pass their own ceiling.
+		gasLimit = 500_000
+	}
+
+	cid, err := hiero.ContractIDFromString(contractID)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("parse contract id %q: %w", contractID, err)
+	}
+
+	// The Hedera SDK's `SetFunction` ABI-encodes a function-selector + params
+	// pair for us via `ContractFunctionParameters`, but our registry writes
+	// already have an ABI-encoded body coming from the web service (which
+	// owns the type definitions). Use `SetFunctionParameters` instead so the
+	// publisher stays ABI-agnostic and the web side stays the source of
+	// truth for the contract surface.
+	functionBody := append(functionSelectorBytes(functionSelector), args...)
+	resp, err := hiero.NewContractExecuteTransaction().
+		SetContractID(cid).
+		SetGas(uint64(gasLimit)).
+		SetFunctionParameters(functionBody).
+		Execute(c.client)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("execute contract: %w", err)
+	}
+	record, err := resp.SetValidateStatus(true).GetRecord(c.client)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("execute contract record: %w", err)
+	}
+
+	// `GasUsed` is informational; the Hedera SDK exposes the contract result
+	// via a separate `GetContractExecuteResult` query that costs another
+	// fee. Skip it for now — the publisher's caller already has the
+	// gas-paid signal from the operator's HBAR balance dashboards.
+	return ContractCallResult{
+		ContractID:         cid.String(),
+		TransactionID:      resp.TransactionID.String(),
+		ConsensusTimestamp: record.ConsensusTimestamp.UTC().Format(time.RFC3339Nano),
+		GasUsed:            0,
+	}, nil
+}
+
+// functionSelectorBytes parses a 0x-prefixed 4-byte hex selector ("0xa1b2c3d4")
+// and returns the raw 4 bytes. Used by ExecuteContract to prepend the
+// Solidity function selector to the caller-supplied ABI-encoded params.
+func functionSelectorBytes(selector string) []byte {
+	s := selector
+	if len(s) >= 2 && (s[:2] == "0x" || s[:2] == "0X") {
+		s = s[2:]
+	}
+	out := make([]byte, len(s)/2)
+	for i := 0; i+1 < len(s); i += 2 {
+		var b byte
+		for j := 0; j < 2; j++ {
+			c := s[i+j]
+			var nibble byte
+			switch {
+			case c >= '0' && c <= '9':
+				nibble = c - '0'
+			case c >= 'a' && c <= 'f':
+				nibble = c - 'a' + 10
+			case c >= 'A' && c <= 'F':
+				nibble = c - 'A' + 10
+			default:
+				return nil
+			}
+			b = (b << 4) | nibble
+		}
+		out[i/2] = b
+	}
+	return out
+}
+
 func (c *sdkClient) Close() error {
 	if c.client == nil {
 		return nil

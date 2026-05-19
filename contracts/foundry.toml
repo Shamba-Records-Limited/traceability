@@ -1,0 +1,29 @@
+# Foundry configuration for the Shamba registry contracts.
+# Compiled with solc 0.8.24 (matches Hedera's EVM-equivalent compatibility window).
+# Optimizer settings tuned for low gas on Hedera; we never deploy thousands of
+# copies so the runs target is set for a single-deploy + many-call workload.
+
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
+evm_version = "shanghai"
+optimizer = true
+optimizer_runs = 1000
+via_ir = false
+verbosity = 2
+
+# Hedera testnet JSON-RPC relays (e.g. HashIO). Production deploys point at
+# the operator's preferred relay; never check a real RPC URL into the repo.
+[rpc_endpoints]
+hedera_testnet = "${HEDERA_EVM_RPC_URL}"
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+quote_style = "double"
