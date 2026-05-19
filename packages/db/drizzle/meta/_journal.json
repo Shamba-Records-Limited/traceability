@@ -43,6 +43,13 @@
       "when": 1779193572307,
       "tag": "0005_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779195249296,
+      "tag": "0006_registry_tx_ids",
+      "breakpoints": true
     }
   ]
 }

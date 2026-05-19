@@ -42,6 +42,15 @@ export const batches = pgTable(
     onChainTokenId: text('on_chain_token_id'),
     onChainSerialNumber: bigint('on_chain_serial_number', { mode: 'bigint' }),
     onChainMintTransactionId: text('on_chain_mint_transaction_id'),
+    /**
+     * Hedera EVM transaction id from a successful `BatchRegistry.recordBatch`
+     * call. `null` means either the registry is disabled in this
+     * environment OR the call soft-failed. The existing reconciler
+     * passes (events + actor DIDs + batch mints) do NOT currently
+     * retry registry calls — pending rows stay pending until a future
+     * registry-specific reconciler pass ships. See ADR-0008.
+     */
+    onChainRegistryTxId: text('on_chain_registry_tx_id'),
     status: batchStatusEnum('status').notNull().default('draft'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

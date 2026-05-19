@@ -39,6 +39,16 @@ export const plots = pgTable(
     geometry: geography({ type: 'GEOMETRY', srid: 4326 })('geometry').notNull(),
     areaHectares: doublePrecision('area_hectares').notNull(),
     onChainCommitmentTopicId: text('on_chain_commitment_topic_id'),
+    /**
+     * Hedera EVM transaction id from a successful `PlotRegistry.attestPlot`
+     * call (the contract registry layered on top of the HCS commitment
+     * per ADR-0008). `null` means either the registry is disabled in
+     * this environment OR the call soft-failed. There is no automatic
+     * reconciler for this column today — pending rows stay pending
+     * until either an operator re-runs the registration or a follow-up
+     * PR ships a registry-specific reconciler pass.
+     */
+    onChainRegistryTxId: text('on_chain_registry_tx_id'),
     registeredAt: timestamp('registered_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

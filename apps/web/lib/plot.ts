@@ -17,6 +17,7 @@ import {
 import { db } from './db';
 import { getDeforestationProvider } from './deforestation';
 import { publishEvent } from './hedera-publisher';
+import { attestPlotOnChain } from './registry';
 
 const { plots, deforestationChecks, events, actors } = schema;
 
@@ -299,26 +300,44 @@ export async function registerPlot(input: RegisterPlotInput): Promise<Registered
       // Post-commit on-chain publish. Done OUTSIDE the transaction so a
       // slow or unreachable publisher does not hold a database connection.
       // On failure publishEvent returns null and we leave the on_chain_*
-      // columns null. There is no automatic reconciler today — pending
-      // rows stay pending until manual intervention or a future PR ships
-      // the reconciler. The plot itself is already persisted regardless.
+      // columns null; the reconciler in `lib/reconciler.ts` retries
+      // pending rows on the Vercel cron schedule. The plot itself is
+      // already persisted regardless.
       const publish = await publishEvent('', eventCommitment);
-      if (publish) {
+
+      // EVM registry attestation (ADR-0008). No-ops when
+      // REGISTRY_CONTRACTS_ENABLED is unset or the contract id is
+      // missing. Same soft-failure contract as the HCS publish.
+      const registry = await attestPlotOnChain({
+        plotId: plotRowId,
+        payloadHash,
+        geometryGeoJson: geometryResult.data!,
+      });
+
+      if (publish || registry) {
         try {
           await db.transaction(async (tx) => {
-            await tx
-              .update(events)
-              .set({
-                onChainTopicId: publish.topicId,
-                onChainSequenceNumber: publish.sequenceNumber,
-                onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
-                onChainTransactionId: publish.transactionId,
-              })
-              .where(eq(events.id, eventId));
-            await tx
-              .update(plots)
-              .set({ onChainCommitmentTopicId: publish.topicId })
-              .where(eq(plots.id, plotRowId));
+            if (publish) {
+              await tx
+                .update(events)
+                .set({
+                  onChainTopicId: publish.topicId,
+                  onChainSequenceNumber: publish.sequenceNumber,
+                  onChainConsensusTimestamp: new Date(publish.consensusTimestamp),
+                  onChainTransactionId: publish.transactionId,
+                })
+                .where(eq(events.id, eventId));
+              await tx
+                .update(plots)
+                .set({ onChainCommitmentTopicId: publish.topicId })
+                .where(eq(plots.id, plotRowId));
+            }
+            if (registry) {
+              await tx
+                .update(plots)
+                .set({ onChainRegistryTxId: registry.transactionId })
+                .where(eq(plots.id, plotRowId));
+            }
           });
         } catch (error) {
           // HCS commit succeeded but the local backfill failed. The plot
@@ -329,7 +348,8 @@ export async function registerPlot(input: RegisterPlotInput): Promise<Registered
           console.error('[plot] HCS commit succeeded but on_chain_* backfill failed', {
             plotId: plotRowId,
             eventId,
-            topicId: publish.topicId,
+            topicId: publish?.topicId,
+            registryTxId: registry?.transactionId,
             error: error instanceof Error ? error.message : String(error),
           });
         }

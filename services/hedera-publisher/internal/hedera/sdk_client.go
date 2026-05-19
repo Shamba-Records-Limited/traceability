@@ -296,6 +296,111 @@ func (c *sdkClient) TransferNFT(ctx context.Context, tokenID string, serial int6
 	}, nil
 }
 
+// ExecuteContract invokes `functionSelector(args...)` on the supplied contract
+// via the native Hedera SDK's ContractExecuteTransaction. We use the SDK path
+// instead of the JSON-RPC relay because (a) we already pay for an operator
+// account in HBAR and the SDK shares signing with HCS/HTS, (b) the SDK gives
+// us a real consensus timestamp and Hedera transaction id that joins cleanly
+// against the rest of the audit trail.
+//
+// `contractID` accepts both Hedera's `0.0.<num>` form and a 0x-prefixed EVM
+// address; the SDK's ContractID parser handles either. `args` MUST be
+// ABI-encoded by the caller — the publisher does not own ABI knowledge.
+func (c *sdkClient) ExecuteContract(ctx context.Context, contractID, functionSelector string, args []byte, gasLimit int64) (ContractCallResult, error) {
+	if err := ctx.Err(); err != nil {
+		return ContractCallResult{}, err
+	}
+	if contractID == "" {
+		return ContractCallResult{}, errors.New("contractID is required")
+	}
+	if functionSelector == "" {
+		return ContractCallResult{}, errors.New("functionSelector is required")
+	}
+	if gasLimit <= 0 {
+		// Hedera's contract calls require a non-trivial gas limit. 500k is a
+		// safe default for the simple append-only writes our registry
+		// contracts do; complex calls should pass their own ceiling.
+		gasLimit = 500_000
+	}
+
+	cid, err := hiero.ContractIDFromString(contractID)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("parse contract id %q: %w", contractID, err)
+	}
+
+	// The Hedera SDK's `SetFunction` ABI-encodes a function-selector + params
+	// pair for us via `ContractFunctionParameters`, but our registry writes
+	// already have an ABI-encoded body coming from the web service (which
+	// owns the type definitions). Use `SetFunctionParameters` instead so the
+	// publisher stays ABI-agnostic and the web side stays the source of
+	// truth for the contract surface.
+	selectorBytes, err := functionSelectorBytes(functionSelector)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("parse function selector %q: %w", functionSelector, err)
+	}
+	functionBody := append(selectorBytes, args...)
+	resp, err := hiero.NewContractExecuteTransaction().
+		SetContractID(cid).
+		SetGas(uint64(gasLimit)).
+		SetFunctionParameters(functionBody).
+		Execute(c.client)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("execute contract: %w", err)
+	}
+	record, err := resp.SetValidateStatus(true).GetRecord(c.client)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("execute contract record: %w", err)
+	}
+
+	// The Hedera SDK does not expose the network's gas-used measurement on
+	// the transaction record directly; fetching it requires a separate
+	// `GetContractExecuteResult` query that costs another fee. The
+	// `ContractCallResult.GasUsed` field is therefore not populated here —
+	// it's wired up only when a future change adds the follow-up query.
+	return ContractCallResult{
+		ContractID:         cid.String(),
+		TransactionID:      resp.TransactionID.String(),
+		ConsensusTimestamp: record.ConsensusTimestamp.UTC().Format(time.RFC3339Nano),
+	}, nil
+}
+
+// functionSelectorBytes parses a 0x-prefixed 4-byte hex selector ("0xa1b2c3d4")
+// and returns the raw 4 bytes. Used by ExecuteContract to prepend the
+// Solidity function selector to the caller-supplied ABI-encoded params.
+// Strictly validates: the selector MUST be exactly 4 bytes (8 hex chars)
+// after stripping the optional 0x prefix, otherwise the contract call
+// would be silently misrouted.
+func functionSelectorBytes(selector string) ([]byte, error) {
+	s := selector
+	if len(s) >= 2 && (s[:2] == "0x" || s[:2] == "0X") {
+		s = s[2:]
+	}
+	if len(s) != 8 {
+		return nil, fmt.Errorf("function selector must be 4 bytes (8 hex chars); got %d hex chars", len(s))
+	}
+	out := make([]byte, 4)
+	for i := 0; i < 4; i++ {
+		var b byte
+		for j := 0; j < 2; j++ {
+			c := s[i*2+j]
+			var nibble byte
+			switch {
+			case c >= '0' && c <= '9':
+				nibble = c - '0'
+			case c >= 'a' && c <= 'f':
+				nibble = c - 'a' + 10
+			case c >= 'A' && c <= 'F':
+				nibble = c - 'A' + 10
+			default:
+				return nil, fmt.Errorf("function selector has non-hex character at position %d", i*2+j)
+			}
+			b = (b << 4) | nibble
+		}
+		out[i] = b
+	}
+	return out, nil
+}
+
 func (c *sdkClient) Close() error {
 	if c.client == nil {
 		return nil
