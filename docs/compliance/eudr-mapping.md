@@ -45,11 +45,11 @@ We adopt the regulation's definitions verbatim in our type system. Key terms —
 
 **Platform feature.**
 
-- `services/dds-generator` produces a DDS that conforms to the schema published by the European Commission, ready for submission.
-- `services/dds-generator` includes a configurable adapter for direct submission to TRACES NT, where the operator has API credentials.
-- The web app surfaces the DDS reference number and ensures it is attached to the shipment record and the consumer-facing QR page.
+- `apps/web/lib/dds.ts` produces a canonical Due Diligence Statement bundle following the Commission's Article 9 information requirements (sub-paragraphs a-h; the legality module for (i) ships in Phase 2). Triggered from `/dashboard/batches/<id>/dds` or programmatically via `POST /api/v1/batches/<id>/dds` (scope `dds:read`).
+- Every issuance emits a `dds_issued` event whose payload commits the bundle's SHA-256 content hash on-chain via HCS, so any downstream party can verify they received the exact JSON the operator issued.
+- TRACES NT direct submission is the planned Phase 2 adapter; today the operator downloads the bundle JSON and uploads it manually.
 
-**Status.** Generator: in progress (planned for first MVP slice). TRACES NT direct submission: planned as adapter (Phase 2).
+**Status.** Generator: implemented (DDS JSON + on-chain content-hash commitment). PDF rendering + TRACES NT direct submission: planned (Phase 2).
 
 ---
 
