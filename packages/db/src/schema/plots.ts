@@ -42,9 +42,11 @@ export const plots = pgTable(
     /**
      * Hedera EVM transaction id from a successful `PlotRegistry.attestPlot`
      * call (the contract registry layered on top of the HCS commitment
-     * per ADR-0008). `null` if the registry is disabled in this
-     * environment OR the call soft-failed and is pending a reconciler
-     * retry.
+     * per ADR-0008). `null` means either the registry is disabled in
+     * this environment OR the call soft-failed. There is no automatic
+     * reconciler for this column today — pending rows stay pending
+     * until either an operator re-runs the registration or a follow-up
+     * PR ships a registry-specific reconciler pass.
      */
     onChainRegistryTxId: text('on_chain_registry_tx_id'),
     registeredAt: timestamp('registered_at', { withTimezone: true }).notNull().defaultNow(),

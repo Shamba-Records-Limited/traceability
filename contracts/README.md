@@ -33,10 +33,17 @@ curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
 
-Build and test:
+The `forge-std` test/script utilities are declared as a git submodule in
+`.gitmodules`. After cloning the monorepo, vendor it once:
 
 ```sh
 cd contracts
+forge install foundry-rs/forge-std --no-commit  # or: git submodule update --init --recursive
+```
+
+Then build and test:
+
+```sh
 forge build
 forge test -vvv
 ```

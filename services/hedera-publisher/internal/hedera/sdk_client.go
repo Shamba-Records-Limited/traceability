@@ -334,7 +334,11 @@ func (c *sdkClient) ExecuteContract(ctx context.Context, contractID, functionSel
 	// owns the type definitions). Use `SetFunctionParameters` instead so the
 	// publisher stays ABI-agnostic and the web side stays the source of
 	// truth for the contract surface.
-	functionBody := append(functionSelectorBytes(functionSelector), args...)
+	selectorBytes, err := functionSelectorBytes(functionSelector)
+	if err != nil {
+		return ContractCallResult{}, fmt.Errorf("parse function selector %q: %w", functionSelector, err)
+	}
+	functionBody := append(selectorBytes, args...)
 	resp, err := hiero.NewContractExecuteTransaction().
 		SetContractID(cid).
 		SetGas(uint64(gasLimit)).
@@ -348,31 +352,37 @@ func (c *sdkClient) ExecuteContract(ctx context.Context, contractID, functionSel
 		return ContractCallResult{}, fmt.Errorf("execute contract record: %w", err)
 	}
 
-	// `GasUsed` is informational; the Hedera SDK exposes the contract result
-	// via a separate `GetContractExecuteResult` query that costs another
-	// fee. Skip it for now — the publisher's caller already has the
-	// gas-paid signal from the operator's HBAR balance dashboards.
+	// The Hedera SDK does not expose the network's gas-used measurement on
+	// the transaction record directly; fetching it requires a separate
+	// `GetContractExecuteResult` query that costs another fee. The
+	// `ContractCallResult.GasUsed` field is therefore not populated here —
+	// it's wired up only when a future change adds the follow-up query.
 	return ContractCallResult{
 		ContractID:         cid.String(),
 		TransactionID:      resp.TransactionID.String(),
 		ConsensusTimestamp: record.ConsensusTimestamp.UTC().Format(time.RFC3339Nano),
-		GasUsed:            0,
 	}, nil
 }
 
 // functionSelectorBytes parses a 0x-prefixed 4-byte hex selector ("0xa1b2c3d4")
 // and returns the raw 4 bytes. Used by ExecuteContract to prepend the
 // Solidity function selector to the caller-supplied ABI-encoded params.
-func functionSelectorBytes(selector string) []byte {
+// Strictly validates: the selector MUST be exactly 4 bytes (8 hex chars)
+// after stripping the optional 0x prefix, otherwise the contract call
+// would be silently misrouted.
+func functionSelectorBytes(selector string) ([]byte, error) {
 	s := selector
 	if len(s) >= 2 && (s[:2] == "0x" || s[:2] == "0X") {
 		s = s[2:]
 	}
-	out := make([]byte, len(s)/2)
-	for i := 0; i+1 < len(s); i += 2 {
+	if len(s) != 8 {
+		return nil, fmt.Errorf("function selector must be 4 bytes (8 hex chars); got %d hex chars", len(s))
+	}
+	out := make([]byte, 4)
+	for i := 0; i < 4; i++ {
 		var b byte
 		for j := 0; j < 2; j++ {
-			c := s[i+j]
+			c := s[i*2+j]
 			var nibble byte
 			switch {
 			case c >= '0' && c <= '9':
@@ -382,13 +392,13 @@ func functionSelectorBytes(selector string) []byte {
 			case c >= 'A' && c <= 'F':
 				nibble = c - 'A' + 10
 			default:
-				return nil
+				return nil, fmt.Errorf("function selector has non-hex character at position %d", i*2+j)
 			}
 			b = (b << 4) | nibble
 		}
-		out[i/2] = b
+		out[i] = b
 	}
-	return out
+	return out, nil
 }
 
 func (c *sdkClient) Close() error {

@@ -11,10 +11,13 @@ import {BatchRegistry} from "../src/BatchRegistry.sol";
 ///         (HashIO relay or the operator's own relay). The deployer EOA is
 ///         derived from PRIVATE_KEY in the standard Foundry way.
 ///
-///         After a successful deploy, print the Hedera contract IDs in
-///         `0.0.<num>` form so the addresses can be pasted into the
-///         publisher's HEDERA_PLOT_REGISTRY_ID / HEDERA_BATCH_REGISTRY_ID
-///         envvars without manual translation.
+///         After a successful deploy, the script prints the EVM addresses
+///         of both registries. Resolve each to a Hedera `0.0.<num>`
+///         contract id via the mirror node (the script can't fetch HTTP
+///         from inside a Foundry run):
+///         `curl "<mirror-node>/api/v1/contracts/<evm-address>" | jq .contract_id`
+///         Paste the resulting `0.0.<num>` into HEDERA_PLOT_REGISTRY_ID /
+///         HEDERA_BATCH_REGISTRY_ID on the publisher.
 contract Deploy is Script {
     function run() external {
         vm.startBroadcast();

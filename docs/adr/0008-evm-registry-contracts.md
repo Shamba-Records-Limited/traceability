@@ -8,7 +8,7 @@
 
 The platform already commits every plot attestation and batch creation to a Hedera Consensus Service topic as an `EventCommitment` (SHA-256 of the off-chain canonical payload, see ADR-0002). HCS is fast, cheap, and gives us total ordering, which is exactly what an audit-trail event log needs.
 
-But integrators (ERPs, importer dashboards, certifiers, competent-authority systems) increasingly expect an **EVM-shaped read surface**: a contract address, an ABI, and an indexed mapping they can query with whatever blockchain plumbing they already have (Ethers, viem, web3.j, Foundry's `cast`). Asking every integrator to consume an HCS topic via the Hiero SDK or the mirror node REST API is a non-trivial integration tax.
+But integrators (ERPs, importer dashboards, certifiers, competent-authority systems) increasingly expect an **EVM-shaped read surface**: a contract address, an ABI, and an indexed mapping they can query with whatever blockchain plumbing they already have (Ethers, viem, web3.js, Foundry's `cast`). Asking every integrator to consume an HCS topic via the Hiero SDK or the mirror node REST API is a non-trivial integration tax.
 
 We need a second on-chain commitment surface that is EVM-native, lives alongside the HCS stream, and stays a thin idempotent index. The HCS stream remains the **system of record** for the event log; the EVM registry is a denormalised index keyed by application id.
 
