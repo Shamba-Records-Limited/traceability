@@ -149,12 +149,19 @@ export default async function BatchesPage() {
                     )}
                   </div>
                 </div>
-                <time
-                  dateTime={batch.createdAt.toISOString()}
-                  className="shrink-0 text-xs text-soil-600"
-                >
-                  {batch.createdAt.toISOString().slice(0, 10)}
-                </time>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <time dateTime={batch.createdAt.toISOString()} className="text-xs text-soil-600">
+                    {batch.createdAt.toISOString().slice(0, 10)}
+                  </time>
+                  {batch.status === 'active' || batch.status === 'draft' ? (
+                    <Link
+                      href={`/dashboard/batches/${batch.id}/handoff`}
+                      className="inline-flex h-8 items-center rounded-md border border-soil-300 bg-white px-3 text-xs font-medium text-soil-900 transition-colors hover:bg-soil-100"
+                    >
+                      Hand off
+                    </Link>
+                  ) : null}
+                </div>
               </div>
             </li>
           ))}

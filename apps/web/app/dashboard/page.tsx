@@ -105,6 +105,23 @@ export default async function DashboardPage() {
 
       <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
         <div>
+          <h2 className="text-lg font-semibold text-soil-900">Handoffs</h2>
+          <p className="mt-1 text-sm text-soil-700">
+            Two-party custody transfers between actors. Propose from a batch, the receiver accepts
+            to take custody. When both actors have a Hedera account id on file the HTS NFT moves
+            on-chain at acceptance.
+          </p>
+        </div>
+        <a
+          href="/dashboard/handoffs"
+          className="inline-flex h-10 shrink-0 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
+        >
+          Manage handoffs
+        </a>
+      </section>
+
+      <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
+        <div>
           <h2 className="text-lg font-semibold text-soil-900">API keys</h2>
           <p className="mt-1 text-sm text-soil-700">
             Mint API keys for external systems (ERPs, importer dashboards, certifiers) to read your

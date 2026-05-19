@@ -27,6 +27,16 @@ export const actors = pgTable(
     roleAttrs: jsonb('role_attrs')
       .notNull()
       .default(sql`'{}'::jsonb`),
+    /**
+     * Hedera account id (e.g. `0.0.12345`) that custodies the actor's HTS
+     * NFTs. Required for on-chain handoff transfers; `null` until the
+     * actor completes the wallet-onboarding workstream (not in scope for
+     * the MVP). When both sides of a handoff have an account id,
+     * `acceptHandoff` calls the publisher's `/v1/batches/transfer`
+     * endpoint; otherwise the handoff settles in the off-chain log only
+     * and the on-chain transfer is deferred to a follow-up reconciler.
+     */
+    hederaAccountId: text('hedera_account_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     /**

@@ -50,6 +50,13 @@
       "when": 1779195249296,
       "tag": "0006_registry_tx_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779196366828,
+      "tag": "0007_actors_hedera_account",
+      "breakpoints": true
     }
   ]
 }
