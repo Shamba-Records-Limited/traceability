@@ -7,31 +7,22 @@ import { schema } from '@shamba/db';
 import { db } from './db';
 import { canonicaliseJson } from './json-canonical';
 import { publishEvent } from './hedera-publisher';
+// Re-export the pure constants from a sibling module so existing
+// consumers don't need to switch imports. Client components should
+// import directly from `./certification-schemes` to avoid pulling the
+// DB driver into the browser bundle.
+import {
+  CERTIFICATION_SCHEMES,
+  CERTIFICATION_SCHEME_LABELS,
+  type CertificationScheme,
+} from './certification-schemes';
+export {
+  CERTIFICATION_SCHEMES,
+  CERTIFICATION_SCHEME_LABELS,
+  type CertificationScheme,
+} from './certification-schemes';
 
 const { actors, batches, certifications, events } = schema;
-
-export const CERTIFICATION_SCHEMES = [
-  'fairtrade',
-  'rainforest_alliance',
-  'organic',
-  'utz',
-  'cocoa_horizons',
-  'gold_standard',
-  'iso14001',
-  'other',
-] as const;
-export type CertificationScheme = (typeof CERTIFICATION_SCHEMES)[number];
-
-export const CERTIFICATION_SCHEME_LABELS: Record<CertificationScheme, string> = {
-  fairtrade: 'Fairtrade',
-  rainforest_alliance: 'Rainforest Alliance',
-  organic: 'Organic',
-  utz: 'UTZ',
-  cocoa_horizons: 'Cocoa Horizons',
-  gold_standard: 'Gold Standard',
-  iso14001: 'ISO 14001',
-  other: 'Other',
-};
 
 export class CertificationError extends Error {
   readonly status: number;

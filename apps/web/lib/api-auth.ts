@@ -4,22 +4,12 @@ import { schema } from '@shamba/db';
 
 import { db } from './db';
 import { hashApiKey, looksLikeApiKey } from './api-key-crypto';
+// Pure constants live in a DB-free sibling so client components can
+// import them without bundling the postgres driver.
+import type { ApiScope } from './api-scopes';
+export { API_SCOPES, type ApiScope } from './api-scopes';
 
 const { apiKeys } = schema;
-
-/**
- * Closed set of scopes the platform recognises. Add new entries here
- * (and update the dashboard's checkbox list) when a new API surface
- * needs to be gated. Keep the namespace::action shape for readability.
- */
-export const API_SCOPES = [
-  'plots:read',
-  'batches:read',
-  'events:read',
-  'lineage:read',
-  'dds:read',
-] as const;
-export type ApiScope = (typeof API_SCOPES)[number];
 
 export interface ResolvedApiKey {
   id: string;

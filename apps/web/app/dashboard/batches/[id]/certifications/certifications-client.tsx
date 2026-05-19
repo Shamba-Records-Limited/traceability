@@ -6,7 +6,7 @@ import {
   CERTIFICATION_SCHEMES,
   CERTIFICATION_SCHEME_LABELS,
   type CertificationScheme,
-} from '../../../../../lib/certification';
+} from '../../../../../lib/certification-schemes';
 
 import {
   submitAttachCertification,

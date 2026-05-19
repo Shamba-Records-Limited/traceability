@@ -1,0 +1,39 @@
+# Fly.io configuration for the Shamba Hedera publisher service.
+#
+# Deploy:
+#   flyctl launch --no-deploy       # one-time, generates the app
+#   flyctl secrets set HEDERA_OPERATOR_ID=... HEDERA_OPERATOR_PRIVATE_KEY=...
+#   flyctl deploy
+#
+# This config keeps the service on the smallest VM available so it
+# stays within Fly's free allowances. The publisher is stateless apart
+# from an in-process FIFO idempotency cache; a single instance is
+# sufficient for the demo and most production workloads.
+
+app = "shamba-publisher"   # CHANGE THIS to your unique Fly app name
+primary_region = "iad"     # closest US-East; pick "fra" or "ams" for EU
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PUBLISHER_LISTEN_ADDR = ":8080"
+  # HEDERA_NETWORK + the operator/treasury credentials are supplied via
+  # `flyctl secrets set ...` so they never land in the repo.
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"   # Free tier: pause when idle.
+  auto_start_machines = true    # Wake on the next request.
+  min_machines_running = 0      # Allow the VM to sleep entirely.
+  [http_service.checks]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
