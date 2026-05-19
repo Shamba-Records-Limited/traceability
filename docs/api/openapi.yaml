@@ -1,0 +1,421 @@
+openapi: 3.1.0
+info:
+  title: Shamba Traceability API
+  version: "1.0.0"
+  summary: Public REST API for EUDR-aligned agricultural traceability records.
+  description: |
+    The Shamba Traceability API exposes a calling actor's plots, batches,
+    deforestation checks, on-chain commitment events, and batch lineage as
+    read-only JSON over HTTPS. It is intended for ERPs, importer
+    dashboards, certification bodies, and competent-authority systems that
+    need machine-readable access to a custodian's compliance record.
+
+    Authentication uses bearer API keys issued from
+    `/dashboard/api-keys`. Each key is scoped to a single actor; the
+    response set is filtered server-side so a key can never see another
+    actor's data. Keys carry one or more OAuth-style scopes:
+    `plots:read`, `batches:read`, `events:read`, `lineage:read`,
+    `dds:read`.
+
+    All timestamps are ISO 8601 UTC. Hedera serial numbers and HCS
+    sequence numbers are returned as JSON strings (not numbers) to
+    preserve precision over `Number.MAX_SAFE_INTEGER`. Pagination is
+    cursor-based with opaque base64url cursors.
+  contact:
+    name: Shamba Records Limited
+    email: api@shambarecords.com
+  license:
+    name: AGPL-3.0-or-later (commercial license available)
+    url: https://github.com/Shamba-Records-Limited/traceability/blob/main/LICENSE-COMMERCIAL.md
+
+servers:
+  - url: https://traceability.shambarecords.com
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerApiKey: []
+
+paths:
+  /api/v1/healthz:
+    get:
+      summary: Liveness probe
+      description: "Unauthenticated. Returns `{ status: ok, version: v1 }`."
+      security: []
+      responses:
+        "200":
+          description: API is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+                  version:
+                    type: string
+                    const: v1
+
+  /api/v1/plots:
+    get:
+      summary: List plots
+      description: Cursor-paginated list of plots owned by the calling key's actor.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Page of plots.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Plot" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/plots/{id}:
+    get:
+      summary: Get a plot
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Plot detail with latest deforestation check.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlotDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/batches:
+    get:
+      summary: List batches
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Page of batches in the calling actor's custody.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Batch" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/batches/{id}:
+    get:
+      summary: Get a batch
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Batch detail with source plot ids and immediate parents.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/batches/{id}/events:
+    get:
+      summary: List a batch's events
+      description: |
+        Newest first, up to 500 most recent events. The full payload is
+        not returned in the public stream — only the SHA-256 payload hash
+        committed on-chain and the on-chain coordinates.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Event commitments for the batch.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/EventCommitment" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/batches/{id}/lineage:
+    get:
+      summary: Get a batch's lineage graph
+      description: |
+        Multi-hop ancestors + descendants as an adjacency list, capped at
+        500 nodes. If `truncated` is true, an integrator needs to walk
+        the edges themselves to continue.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Lineage graph.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lineage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: sk_shamba_<64-hex>
+      description: API key minted at /dashboard/api-keys.
+
+  parameters:
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor returned in `nextCursor` of the previous page.
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing, malformed, unknown, or revoked API key.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AuthError" }
+    Forbidden:
+      description: API key is missing the required scope.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ScopeError" }
+    NotFound:
+      description: Resource not found, or not visible to the calling actor.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string, const: not_found }
+
+  schemas:
+    PageEnvelope:
+      type: object
+      required: [data, limit, nextCursor]
+      properties:
+        data:
+          type: array
+          items: {}
+        limit: { type: integer }
+        nextCursor:
+          type: ["string", "null"]
+          description: Pass this back as `?cursor=` to fetch the next page. `null` when no more pages.
+
+    AuthError:
+      type: object
+      required: [error, reason]
+      properties:
+        error: { type: string, const: unauthenticated }
+        reason:
+          type: string
+          enum: [missing, malformed, unknown, revoked]
+
+    ScopeError:
+      type: object
+      required: [error, reason, required, provided]
+      properties:
+        error: { type: string, const: forbidden }
+        reason: { type: string, const: scope }
+        required:
+          type: string
+          enum: [plots:read, batches:read, events:read, lineage:read, dds:read]
+        provided:
+          type: array
+          items: { type: string }
+
+    Plot:
+      type: object
+      required:
+        - id
+        - ownerActorId
+        - country
+        - commodities
+        - areaHectares
+        - registeredAt
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        ownerActorId: { type: string, format: uuid }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        subnational: { type: ["string", "null"] }
+        commodities:
+          type: array
+          items: { type: string, enum: [cattle, cocoa, coffee, oil_palm, rubber, soya, wood] }
+        areaHectares: { type: number }
+        onChainCommitmentTopicId: { type: ["string", "null"] }
+        registeredAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    PlotDetail:
+      allOf:
+        - $ref: "#/components/schemas/Plot"
+        - type: object
+          properties:
+            latestDeforestationCheck:
+              oneOf:
+                - type: "null"
+                - type: object
+                  required:
+                    - id
+                    - provider
+                    - cutOffDate
+                    - performedAt
+                    - deforestationDetected
+                  properties:
+                    id: { type: string, format: uuid }
+                    provider: { type: string }
+                    providerVersion: { type: ["string", "null"] }
+                    cutOffDate: { type: string, format: date-time }
+                    performedAt: { type: string, format: date-time }
+                    deforestationDetected: { type: boolean }
+                    hectaresLostAfterCutOff: { type: ["number", "null"] }
+
+    Batch:
+      type: object
+      required:
+        - id
+        - commodity
+        - processingStage
+        - unit
+        - quantity
+        - productionStart
+        - productionEnd
+        - custodianActorId
+        - status
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        commodity:
+          type: string
+          enum: [cattle, cocoa, coffee, oil_palm, rubber, soya, wood]
+        processingStage:
+          type: string
+          enum: [raw, primary_processed, secondary_processed, finished]
+        unit: { type: string, enum: [kg, head, tonne, m3] }
+        quantity: { type: number }
+        productionStart: { type: string, format: date-time }
+        productionEnd: { type: string, format: date-time }
+        custodianActorId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [draft, active, consumed, exhausted, voided]
+        onChainTopicId: { type: ["string", "null"] }
+        onChainTokenId: { type: ["string", "null"] }
+        onChainSerialNumber:
+          type: ["string", "null"]
+          description: HTS NFT serial, returned as a string because it can exceed Number.MAX_SAFE_INTEGER.
+        onChainMintTransactionId: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    BatchDetail:
+      allOf:
+        - $ref: "#/components/schemas/Batch"
+        - type: object
+          required: [sourcePlotIds, parentBatchIds]
+          properties:
+            sourcePlotIds:
+              type: array
+              items: { type: string, format: uuid }
+            parentBatchIds:
+              type: array
+              items: { type: string, format: uuid }
+
+    EventCommitment:
+      type: object
+      required: [id, type, emittedAt, emittedByDid, payloadHash]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum:
+            - batch_created
+            - plot_attested
+            - sample_recorded
+            - certification_attached
+            - handoff_proposed
+            - handoff_dispatched
+            - handoff_received
+            - batch_split
+            - batch_merged
+            - batch_exported
+            - batch_imported
+            - dds_issued
+            - dds_accepted
+            - batch_voided
+        emittedAt: { type: string, format: date-time }
+        emittedByDid:
+          type: string
+          description: DID of the actor that emitted the event (e.g., did:hedera:testnet:0.0.12345).
+        payloadHash:
+          type: string
+          minLength: 64
+          maxLength: 64
+          description: SHA-256 (hex) of the canonical off-chain event payload.
+        payloadCid: { type: ["string", "null"] }
+        onChainTopicId: { type: ["string", "null"] }
+        onChainSequenceNumber: { type: ["string", "null"] }
+        onChainConsensusTimestamp: { type: ["string", "null"], format: date-time }
+        onChainTransactionId: { type: ["string", "null"] }
+
+    Lineage:
+      type: object
+      required: [rootBatchId, nodes, edges, truncated, maxNodes]
+      properties:
+        rootBatchId: { type: string, format: uuid }
+        nodes:
+          type: array
+          items:
+            type: object
+            required: [id, commodity, processingStage, status]
+            properties:
+              id: { type: string, format: uuid }
+              commodity: { type: string }
+              processingStage: { type: string }
+              status: { type: string }
+        edges:
+          type: array
+          items:
+            type: object
+            required: [child, parent]
+            properties:
+              child: { type: string, format: uuid }
+              parent: { type: string, format: uuid }
+        truncated: { type: boolean }
+        maxNodes: { type: integer }

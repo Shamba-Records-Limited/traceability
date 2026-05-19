@@ -102,6 +102,22 @@ export default async function DashboardPage() {
           Manage batches
         </a>
       </section>
+
+      <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
+        <div>
+          <h2 className="text-lg font-semibold text-soil-900">API keys</h2>
+          <p className="mt-1 text-sm text-soil-700">
+            Mint API keys for external systems (ERPs, importer dashboards, certifiers) to read your
+            plots, batches, events, and lineage via the public <code>/api/v1</code> surface.
+          </p>
+        </div>
+        <a
+          href="/dashboard/api-keys"
+          className="inline-flex h-10 shrink-0 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
+        >
+          Manage keys
+        </a>
+      </section>
     </main>
   );
 }
