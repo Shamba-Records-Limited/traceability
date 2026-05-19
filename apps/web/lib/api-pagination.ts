@@ -1,18 +1,25 @@
 /**
  * Cursor pagination helpers for the public /api/v1 surface. We use
  * opaque cursors (Base64-encoded JSON) instead of offset+limit so
- * pagination is stable across writes — adding a new plot between page
+ * pagination is stable across writes — adding a new row between page
  * reads can't cause the integrator to skip or duplicate rows.
  *
- * The cursor encodes the LAST row's `createdAt` ISO string plus its
- * `id`; the next page's query is "anything created before this
- * timestamp, or created at the same timestamp with a lower id". This
- * gives a total order even when timestamps collide.
+ * The cursor encodes the LAST row's sort timestamp (`sortAt`) plus its
+ * `id`. Each endpoint picks the ordering timestamp that makes sense
+ * for that resource — `plots.registered_at` for plots,
+ * `batches.created_at` for batches, etc. — and stuffs the ISO string
+ * into `sortAt`. The next page's query is "anything sorted before
+ * this timestamp, or equal timestamp with a lower id", which gives a
+ * total order even when timestamps collide.
  */
 
 export interface Cursor {
-  /** ISO-8601 UTC instant of the last row on the previous page. */
-  createdAt: string;
+  /**
+   * ISO-8601 UTC instant of the last row on the previous page, on
+   * whichever timestamp column the endpoint sorts by. NOT necessarily
+   * `created_at` — e.g. /plots sorts by `registered_at`.
+   */
+  sortAt: string;
   /** UUID of the last row on the previous page. */
   id: string;
 }
@@ -29,9 +36,9 @@ export function decodeCursor(value: string | null): Cursor | null {
   try {
     const raw = Buffer.from(value, 'base64url').toString('utf8');
     const parsed = JSON.parse(raw) as Partial<Cursor>;
-    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') return null;
-    if (Number.isNaN(Date.parse(parsed.createdAt))) return null;
-    return { createdAt: parsed.createdAt, id: parsed.id };
+    if (typeof parsed.sortAt !== 'string' || typeof parsed.id !== 'string') return null;
+    if (Number.isNaN(Date.parse(parsed.sortAt))) return null;
+    return { sortAt: parsed.sortAt, id: parsed.id };
   } catch {
     return null;
   }

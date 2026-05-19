@@ -12,9 +12,13 @@ import { actors } from './actors';
  *   - We NEVER store the key itself; only `keyHash` (SHA-256 hex of the
  *     full key) is persisted. Auth lookup re-hashes the incoming bearer
  *     token and compares.
- *   - `prefix` keeps the first 8 chars of the cleartext key for display
- *     in dashboards (so an operator can identify which key is which
- *     without revealing the secret).
+ *   - `prefix` keeps the first 12 chars of the cleartext key (matching
+ *     the CHAR(12) column type) for display in dashboards so an
+ *     operator can identify which key is which without revealing the
+ *     secret. 12 was chosen because it includes the constant
+ *     `sk_shamba_` namespace (10 chars) plus 2 chars of the random
+ *     tail, which is enough for visual identification while leaking
+ *     negligible entropy.
  *   - `scopes` is an array of OAuth-style scope strings (e.g.
  *     `plots:read`, `batches:read`). At least one scope is required at
  *     creation time. The application enforces scope checks on every

@@ -57,7 +57,9 @@ export async function resolveApiKey(
   requiredScope?: ApiScope,
 ): Promise<ResolveResult> {
   if (!authorizationHeader) return { ok: false, status: 401, reason: 'missing' };
-  const match = /^Bearer\s+(\S+)$/.exec(authorizationHeader);
+  // RFC 6750 §2.1: the scheme name `Bearer` is case-insensitive.
+  // Match `bearer`, `BEARER`, `Bearer`, etc. all the same.
+  const match = /^Bearer\s+(\S+)$/i.exec(authorizationHeader);
   if (!match) return { ok: false, status: 401, reason: 'malformed' };
   const cleartext = match[1]!;
   if (!looksLikeApiKey(cleartext)) {

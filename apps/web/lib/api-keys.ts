@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { schema } from '@shamba/db';
 
@@ -86,8 +86,9 @@ export async function listApiKeysForActor(actorId: string): Promise<
 
 /**
  * Revoke an API key. Returns true if the row was newly revoked, false
- * if it was already revoked or does not belong to the calling actor
- * (the second case keeps us from leaking existence).
+ * if it was already revoked, does not exist, or does not belong to
+ * the calling actor (the two missing-case branches keep us from
+ * leaking existence).
  */
 export async function revokeApiKey(input: { keyId: string; actorId: string }): Promise<boolean> {
   const updated = await db
@@ -97,12 +98,13 @@ export async function revokeApiKey(input: { keyId: string; actorId: string }): P
       and(
         eq(apiKeys.id, input.keyId),
         eq(apiKeys.actorId, input.actorId),
-        // Only flip rows whose revokedAt is currently NULL — otherwise a
-        // double-revoke would update the timestamp and look "successful"
-        // when nothing changed.
+        // Only flip rows whose revokedAt is currently NULL. Without
+        // this predicate a double-revoke would re-stamp the timestamp
+        // and return `true`, contradicting the idempotency contract.
+        isNull(apiKeys.revokedAt),
       ),
     )
-    .returning({ id: apiKeys.id, revokedAt: apiKeys.revokedAt });
+    .returning({ id: apiKeys.id });
 
-  return updated.length === 1 && updated[0]!.revokedAt !== null;
+  return updated.length === 1;
 }

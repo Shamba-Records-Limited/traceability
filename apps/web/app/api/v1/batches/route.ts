@@ -31,8 +31,8 @@ export async function GET(request: Request): Promise<Response> {
 
   const cursorPredicate = cursor
     ? or(
-        lt(batches.createdAt, new Date(cursor.createdAt)),
-        and(eq(batches.createdAt, new Date(cursor.createdAt)), lt(batches.id, cursor.id)),
+        lt(batches.createdAt, new Date(cursor.sortAt)),
+        and(eq(batches.createdAt, new Date(cursor.sortAt)), lt(batches.id, cursor.id)),
       )
     : undefined;
 
@@ -62,7 +62,7 @@ export async function GET(request: Request): Promise<Response> {
   const page = hasMore ? rows.slice(0, limit) : rows;
   const last = page[page.length - 1];
   const nextCursor =
-    hasMore && last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null;
+    hasMore && last ? encodeCursor({ sortAt: last.createdAt.toISOString(), id: last.id }) : null;
 
   return Response.json({
     data: page.map((row) => ({

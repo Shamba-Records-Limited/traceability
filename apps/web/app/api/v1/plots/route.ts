@@ -39,8 +39,8 @@ export async function GET(request: Request): Promise<Response> {
   // under concurrent inserts.
   const cursorPredicate = cursor
     ? or(
-        lt(plots.registeredAt, new Date(cursor.createdAt)),
-        and(eq(plots.registeredAt, new Date(cursor.createdAt)), lt(plots.id, cursor.id)),
+        lt(plots.registeredAt, new Date(cursor.sortAt)),
+        and(eq(plots.registeredAt, new Date(cursor.sortAt)), lt(plots.id, cursor.id)),
       )
     : undefined;
 
@@ -65,9 +65,7 @@ export async function GET(request: Request): Promise<Response> {
   const page = hasMore ? rows.slice(0, limit) : rows;
   const last = page[page.length - 1];
   const nextCursor =
-    hasMore && last
-      ? encodeCursor({ createdAt: last.registeredAt.toISOString(), id: last.id })
-      : null;
+    hasMore && last ? encodeCursor({ sortAt: last.registeredAt.toISOString(), id: last.id }) : null;
 
   return Response.json({
     data: page.map((row) => ({
