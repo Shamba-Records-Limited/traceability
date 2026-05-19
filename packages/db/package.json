@@ -1,6 +1,6 @@
 {
   "name": "@shamba/db",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "PostgreSQL + PostGIS schema and Drizzle ORM client for Shamba Traceability",
   "license": "AGPL-3.0-or-later",

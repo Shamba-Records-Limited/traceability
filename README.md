@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](./LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial%20license-available-green)](./LICENSE-COMMERCIAL.md)
-[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)](#status)
+[![Status: 0.1.0](https://img.shields.io/badge/status-0.1.0%20release-blue)](#status)
 [![EUDR](https://img.shields.io/badge/EUDR-Regulation%202023%2F1115-yellow)](./docs/compliance/eudr-mapping.md)
 
 A project of [Shamba Records Limited](https://shambarecords.com).

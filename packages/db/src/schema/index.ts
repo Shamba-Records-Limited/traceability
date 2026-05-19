@@ -17,3 +17,4 @@ export * from './api-keys';
 export * from './audit-shares';
 export * from './mint-requests';
 export * from './legality';
+export * from './certifications';
