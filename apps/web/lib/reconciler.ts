@@ -4,10 +4,11 @@ import { schema } from '@shamba/db';
 
 import { db } from './db';
 import { mintDid } from './did-issuer';
+import { mintBatchNft } from './hedera-mint';
 import { publishEvent } from './hedera-publisher';
 import { PLACEHOLDER_DID_PREFIX } from './actor';
 
-const { actors, events, plots } = schema;
+const { actors, batches, events, plots } = schema;
 
 /**
  * The reconciler does the housekeeping our happy paths can't promise:
@@ -52,10 +53,16 @@ export interface ReconcileSummary {
     rotated: number;
     failed: number;
   };
+  batches: {
+    scanned: number;
+    minted: number;
+    failed: number;
+  };
 }
 
 const DEFAULT_EVENT_LIMIT = 50;
 const DEFAULT_ACTOR_LIMIT = 25;
+const DEFAULT_BATCH_LIMIT = 25;
 
 interface ClaimedEventRow {
   id: string;
@@ -283,12 +290,157 @@ export async function reconcileActorDids(
   return summary;
 }
 
+interface ClaimedBatchRow {
+  id: string;
+  payloadHash: string | null;
+}
+
 /**
- * Run both reconciliation passes back-to-back. Returned summary can be
+ * Atomically claim up to `limit` batch rows whose NFT mint never landed.
+ * The candidate predicate matches `on_chain_token_id IS NULL`; once the
+ * mint backfills the column the row drops out of subsequent scans
+ * without needing the claim cleared.
+ *
+ * The accompanying `batch_created` event carries the payload hash we
+ * commit to the NFT metadata, so we pull it out here in the same pass
+ * to avoid a second round-trip per claim.
+ */
+async function claimPendingBatchMints(limit: number): Promise<ClaimedBatchRow[]> {
+  const staleCutoff = new Date(Date.now() - CLAIM_TTL_MS);
+  const candidates = await db
+    .select({ id: batches.id })
+    .from(batches)
+    .where(
+      and(
+        isNull(batches.onChainTokenId),
+        or(isNull(batches.claimedAt), lt(batches.claimedAt, staleCutoff)),
+      ),
+    )
+    .orderBy(batches.createdAt)
+    .limit(limit);
+
+  if (candidates.length === 0) return [];
+
+  const claimed = await db
+    .update(batches)
+    .set({ claimedAt: sql`now()` })
+    .where(
+      and(
+        inArray(
+          batches.id,
+          candidates.map((c) => c.id),
+        ),
+        isNull(batches.onChainTokenId),
+        or(isNull(batches.claimedAt), lt(batches.claimedAt, staleCutoff)),
+      ),
+    )
+    .returning({ id: batches.id });
+
+  if (claimed.length === 0) return [];
+
+  // Look up the canonical payload hash for each claimed batch's
+  // `batch_created` event so the reconciler can stamp it into the NFT
+  // metadata exactly as `createBatch` did on the happy path.
+  const eventRows = await db
+    .select({ batchId: events.batchId, payloadHash: events.payloadHash })
+    .from(events)
+    .where(
+      and(
+        inArray(
+          events.batchId,
+          claimed.map((c) => c.id),
+        ),
+        eq(events.type, 'batch_created'),
+      ),
+    );
+  const hashByBatch = new Map(eventRows.map((r) => [r.batchId ?? '', r.payloadHash]));
+  return claimed.map((c) => ({ id: c.id, payloadHash: hashByBatch.get(c.id) ?? null }));
+}
+
+/**
+ * Replay any `batches` rows whose HTS NFT mint never landed. Each
+ * successful retry stamps the on-chain token id, serial number, and
+ * mint transaction id onto the batch row and flips its status from
+ * `draft` to `active`. Soft-failure-friendly: a still-unreachable
+ * publisher leaves the row pending for the next cron tick.
+ */
+export async function reconcileBatchMints(
+  limit: number = DEFAULT_BATCH_LIMIT,
+): Promise<ReconcileSummary['batches']> {
+  const summary: ReconcileSummary['batches'] = {
+    scanned: 0,
+    minted: 0,
+    failed: 0,
+  };
+
+  const claimed = await claimPendingBatchMints(limit);
+  summary.scanned = claimed.length;
+
+  for (const row of claimed) {
+    if (!row.payloadHash) {
+      // No `batch_created` event found for this batch — schema
+      // misconfiguration. Leave the lease set so the row doesn't
+      // thrash on every tick; it expires after CLAIM_TTL_MS and skips
+      // again next tick.
+      summary.failed += 1;
+      continue;
+    }
+
+    const mint = await mintBatchNft({
+      tokenId: '',
+      name: `Shamba Batch ${row.id.slice(0, 8)}`,
+      symbol: 'SHAMBA-BATCH',
+      metadata: { batchId: row.id, payloadHash: row.payloadHash, schemaVersion: 1 },
+    });
+    if (!mint) {
+      summary.failed += 1;
+      continue;
+    }
+
+    try {
+      // Belt-and-braces: only stamp rows that are still pending. A
+      // concurrent createBatch tick (or a stale lease that expired
+      // between our claim and our publish) might have minted already;
+      // in that case we leave the row alone.
+      const updated = await db
+        .update(batches)
+        .set({
+          onChainTokenId: mint.tokenId,
+          onChainSerialNumber: mint.serialNumber,
+          onChainMintTransactionId: mint.transactionId,
+          status: 'active',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(batches.id, row.id), isNull(batches.onChainTokenId)))
+        .returning({ id: batches.id });
+      if (updated.length === 1) {
+        summary.minted += 1;
+      } else {
+        console.warn('[reconciler] batch row no longer pending; skipping mint stamp', {
+          batchId: row.id,
+          tokenId: mint.tokenId,
+        });
+      }
+    } catch (error) {
+      console.error('[reconciler] NFT mint succeeded but batch backfill failed', {
+        batchId: row.id,
+        tokenId: mint.tokenId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      summary.failed += 1;
+    }
+  }
+
+  return summary;
+}
+
+/**
+ * Run all reconciliation passes back-to-back. Returned summary can be
  * surfaced in observability dashboards / logs.
  */
 export async function runReconciler(): Promise<ReconcileSummary> {
   const eventsResult = await reconcilePlotEvents();
   const actorsResult = await reconcileActorDids();
-  return { events: eventsResult, actors: actorsResult };
+  const batchesResult = await reconcileBatchMints();
+  return { events: eventsResult, actors: actorsResult, batches: batchesResult };
 }

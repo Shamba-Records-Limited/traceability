@@ -29,6 +29,13 @@
       "when": 1778947638619,
       "tag": "0003_reconciler_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779191959877,
+      "tag": "0004_batches_claim_lease",
+      "breakpoints": true
     }
   ]
 }

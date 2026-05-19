@@ -86,6 +86,22 @@ export default async function DashboardPage() {
           Manage plots
         </a>
       </section>
+
+      <section className="mt-6 flex items-center justify-between gap-4 rounded-md border border-soil-200 bg-white p-6">
+        <div>
+          <h2 className="text-lg font-semibold text-soil-900">Batches</h2>
+          <p className="mt-1 text-sm text-soil-700">
+            Aggregate produce from your plots into traceable batches. Each batch lands on-chain as
+            an HTS NFT with an HCS event stream and lineage to its parents.
+          </p>
+        </div>
+        <a
+          href="/dashboard/batches"
+          className="inline-flex h-10 shrink-0 items-center rounded-md bg-leaf-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-leaf-700"
+        >
+          Manage batches
+        </a>
+      </section>
     </main>
   );
 }
