@@ -36,6 +36,13 @@
       "when": 1779191959877,
       "tag": "0004_batches_claim_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779193572307,
+      "tag": "0005_api_keys",
+      "breakpoints": true
     }
   ]
 }
