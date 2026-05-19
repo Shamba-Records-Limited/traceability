@@ -161,6 +161,12 @@ export default async function BatchesPage() {
                       Hand off
                     </Link>
                   ) : null}
+                  <Link
+                    href={`/dashboard/batches/${batch.id}/dds`}
+                    className="inline-flex h-8 items-center rounded-md border border-soil-300 bg-white px-3 text-xs font-medium text-soil-900 transition-colors hover:bg-soil-100"
+                  >
+                    DDS
+                  </Link>
                 </div>
               </div>
             </li>
