@@ -1,0 +1,1 @@
+ALTER TABLE "actors" ADD COLUMN "hedera_account_id" text;
