@@ -372,7 +372,9 @@ export async function registerPlot(input: RegisterPlotInput): Promise<Registered
 /**
  * List plots owned by a given actor, newest registration first. Used by the
  * `/dashboard/plots` page. `onChainTopicId` is non-null once the publisher
- * has committed the plot's `plot_attested` event to HCS.
+ * has committed the plot's `plot_attested` event to HCS. `geometryJson` is
+ * the PostGIS-rendered GeoJSON string for the plot, ready to be JSON.parse'd
+ * and handed to a Leaflet GeoJSON layer for map rendering.
  */
 export async function listPlotsForActor(ownerActorId: string): Promise<
   Array<{
@@ -383,6 +385,7 @@ export async function listPlotsForActor(ownerActorId: string): Promise<
     areaHectares: number;
     registeredAt: Date;
     onChainTopicId: string | null;
+    geometryJson: string;
   }>
 > {
   return db
@@ -394,6 +397,7 @@ export async function listPlotsForActor(ownerActorId: string): Promise<
       areaHectares: plots.areaHectares,
       registeredAt: plots.registeredAt,
       onChainTopicId: plots.onChainCommitmentTopicId,
+      geometryJson: sql<string>`ST_AsGeoJSON(${plots.geometry})`,
     })
     .from(plots)
     .where(eq(plots.ownerActorId, ownerActorId))

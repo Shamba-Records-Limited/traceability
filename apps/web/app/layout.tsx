@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 
 import './globals.css';
 
+import { Toaster } from '../components/ui/toaster';
+
 export const metadata: Metadata = {
   title: {
     default: 'Shamba Traceability',
@@ -27,7 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-soil-50 text-soil-900 antialiased">{children}</body>
+      <body className="min-h-screen bg-soil-50 text-soil-900 antialiased">
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
