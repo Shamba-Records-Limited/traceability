@@ -167,6 +167,12 @@ export default async function BatchesPage() {
                   >
                     DDS
                   </Link>
+                  <Link
+                    href={`/dashboard/batches/${batch.id}/shares`}
+                    className="inline-flex h-8 items-center rounded-md border border-soil-300 bg-white px-3 text-xs font-medium text-soil-900 transition-colors hover:bg-soil-100"
+                  >
+                    Share
+                  </Link>
                 </div>
               </div>
             </li>

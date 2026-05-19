@@ -14,3 +14,4 @@ export * from './handoffs';
 export * from './events';
 export * from './auth';
 export * from './api-keys';
+export * from './audit-shares';

@@ -57,6 +57,13 @@
       "when": 1779196366828,
       "tag": "0007_actors_hedera_account",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779197554248,
+      "tag": "0008_audit_shares",
+      "breakpoints": true
     }
   ]
 }
