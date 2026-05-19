@@ -64,6 +64,13 @@
       "when": 1779197554248,
       "tag": "0008_audit_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779198667835,
+      "tag": "0009_outbox_and_legality",
+      "breakpoints": true
     }
   ]
 }

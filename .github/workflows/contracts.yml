@@ -1,0 +1,53 @@
+name: Contracts (Foundry)
+
+# Runs `forge build` + `forge test` against the Solidity registry
+# contracts in `/contracts`. Only triggers when files under `/contracts`
+# change so unrelated PRs don't pay the Foundry-install cost.
+
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contracts.yml"
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contracts.yml"
+
+jobs:
+  build-and-test:
+    name: Build + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      # The `forge-std` library is declared as a submodule in
+      # `contracts/.gitmodules`. Belt-and-braces if the checkout step
+      # didn't recurse for whatever reason.
+      - name: Ensure forge-std installed
+        run: |
+          if [ ! -d "lib/forge-std" ]; then
+            forge install foundry-rs/forge-std --no-commit
+          fi
+
+      - name: forge build
+        run: forge build --sizes
+
+      - name: forge test
+        run: forge test -vvv
+
+      - name: forge fmt --check
+        run: forge fmt --check
+        continue-on-error: true # Don't block on style; fix later.
