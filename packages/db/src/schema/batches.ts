@@ -41,9 +41,18 @@ export const batches = pgTable(
     onChainTopicId: text('on_chain_topic_id'),
     onChainTokenId: text('on_chain_token_id'),
     onChainSerialNumber: bigint('on_chain_serial_number', { mode: 'bigint' }),
+    onChainMintTransactionId: text('on_chain_mint_transaction_id'),
     status: batchStatusEnum('status').notNull().default('draft'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Reconciler lease timestamp. Non-null means a worker is currently
+     * attempting to mint or rotate the on-chain NFT for this batch. Same
+     * claim-before-publish pattern as `actors.claimed_at` and
+     * `events.claimed_at` in migration 0003 — stops two cron ticks from
+     * minting duplicate NFTs for the same batch.
+     */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
   },
   (t) => [
     index('batches_commodity_idx').on(t.commodity),
