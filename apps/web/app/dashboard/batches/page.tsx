@@ -173,6 +173,20 @@ export default async function BatchesPage() {
                   >
                     Share
                   </Link>
+                  <Link
+                    href={`/dashboard/batches/${batch.id}/certifications`}
+                    className="inline-flex h-8 items-center rounded-md border border-soil-300 bg-white px-3 text-xs font-medium text-soil-900 transition-colors hover:bg-soil-100"
+                  >
+                    Certs
+                  </Link>
+                  <a
+                    href={`/trace/${batch.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center rounded-md border border-leaf-300 bg-leaf-50 px-3 text-xs font-medium text-leaf-700 transition-colors hover:bg-leaf-100"
+                  >
+                    Trace + QR
+                  </a>
                 </div>
               </div>
             </li>
