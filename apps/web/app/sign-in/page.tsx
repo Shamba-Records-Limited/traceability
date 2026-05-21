@@ -1,10 +1,18 @@
-import { signIn } from '../../auth';
+import { redirect } from 'next/navigation';
+
+import { auth, signIn } from '../../auth';
 
 export const metadata = {
   title: 'Sign in',
 };
 
-export default function SignInPage() {
+export default async function SignInPage() {
+  // Already authed? Skip the form and go to the dashboard. The
+  // dashboard server component bounces brand-new users (no actor row
+  // yet) to /onboarding, so this single redirect covers both cases.
+  const session = await auth();
+  if (session?.user?.id) redirect('/dashboard');
+
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
       <h1 className="text-2xl font-semibold tracking-tight text-soil-900">Sign in to Shamba</h1>
@@ -19,6 +27,15 @@ export default function SignInPage() {
         }}
         className="mt-8 space-y-4"
       >
+        {/* Auth.js v5 reads this from formData and embeds it as
+            `callbackUrl` in the magic-link email itself. Without it,
+            callbackUrl defaults to the referer (/sign-in), so a
+            successful click drops the user right back on this page —
+            indistinguishable from a failed sign-in. Pointing at
+            /dashboard sends them somewhere useful; the dashboard
+            server component then bounces brand-new users to
+            /onboarding. */}
+        <input type="hidden" name="redirectTo" value="/dashboard" />
         <label className="block">
           <span className="text-sm font-medium text-soil-800">Email</span>
           <input
