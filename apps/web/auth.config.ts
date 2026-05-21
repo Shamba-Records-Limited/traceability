@@ -39,7 +39,32 @@ export const authConfig = {
       // Other routes (landing, sign-in, public QR pages) are always allowed.
       return true;
     },
+    /**
+     * Copy the database user id into the JWT (`token.sub`) on first
+     * sign-in and into the session (`session.user.id`) on every read.
+     * Auth.js v5's defaults populate `session.user` with name/email/
+     * image but NOT id — every server component that does
+     * `session.user.id` would otherwise see `undefined` and redirect
+     * to /sign-in.
+     *
+     * https://authjs.dev/guides/extending-the-session
+     */
+    jwt({ token, user }) {
+      if (user) token.sub = user.id;
+      return token;
+    },
+    session({ session, token }) {
+      if (token.sub && session.user) {
+        session.user.id = token.sub;
+      }
+      return session;
+    },
   },
+  // Pin JWT session strategy. `proxy.ts` (Edge) has no adapter so it
+  // defaults to 'jwt' anyway, but stating it here keeps the Edge and
+  // Node Auth.js instances in lockstep — any future change has to
+  // touch this file, not just `auth.ts`.
+  session: { strategy: 'jwt' },
   // Providers are listed in `auth.ts` because Nodemailer is Node-only.
   // The Auth.js types require at least an empty array here.
   providers: [],
