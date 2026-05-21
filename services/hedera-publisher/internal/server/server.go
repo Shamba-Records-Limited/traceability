@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/Shamba-Records-Limited/traceability/services/hedera-publisher/internal/config"
 	"github.com/Shamba-Records-Limited/traceability/services/hedera-publisher/internal/hedera"
@@ -30,6 +33,18 @@ type Server struct {
 	idempotencyMu    sync.Mutex
 	idempotencyOrder []string
 	idempotencyCache map[string]idempotentMint
+
+	// Per-IP rate limiter for `POST /v1/accounts/create`. Account
+	// creation is the only endpoint that materially spends operator
+	// HBAR per call (each new account is funded with ~10 HBAR), so a
+	// rogue caller looping the endpoint would drain the operator
+	// balance fast. A simple sliding-window counter capped at
+	// `accountsCreateRateLimit` per `accountsCreateRateWindow` is
+	// enough for the current single-publisher topology; if we ever
+	// run the publisher behind multiple instances this becomes a
+	// Redis-backed token bucket.
+	accountsCreateMu      sync.Mutex
+	accountsCreateBuckets map[string]*accountCreateBucket
 }
 
 type idempotentMint struct {
@@ -38,14 +53,34 @@ type idempotentMint struct {
 
 const idempotencyMax = 4096
 
+// accountCreateBucket tracks the timestamps of recent successful
+// account-create attempts from a single source IP. We keep timestamps
+// rather than a single counter so the limiter is sliding-window — a
+// fixed window lets a caller burst 2x the limit at the boundary, which
+// for a real-HBAR endpoint we want to avoid.
+type accountCreateBucket struct {
+	timestamps []time.Time
+}
+
+const (
+	// accountsCreateRateLimit caps the per-IP create rate to 10 per
+	// `accountsCreateRateWindow`. 10/hour is generous for a real
+	// human (onboarding happens once) and tight enough that even a
+	// short-lived abuse loop is bounded before an operator can
+	// rotate keys.
+	accountsCreateRateLimit  = 10
+	accountsCreateRateWindow = time.Hour
+)
+
 // New constructs a Server with routes registered.
 func New(cfg *config.Config, logger *slog.Logger, client hedera.Client) *Server {
 	s := &Server{
-		cfg:              cfg,
-		logger:           logger,
-		hedera:           client,
-		mux:              http.NewServeMux(),
-		idempotencyCache: make(map[string]idempotentMint, idempotencyMax),
+		cfg:                   cfg,
+		logger:                logger,
+		hedera:                client,
+		mux:                   http.NewServeMux(),
+		idempotencyCache:      make(map[string]idempotentMint, idempotencyMax),
+		accountsCreateBuckets: make(map[string]*accountCreateBucket),
 	}
 	s.routes()
 	return s
@@ -97,6 +132,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /v1/batches/mint", s.withLogging(s.handleMintBatch))
 	s.mux.Handle("POST /v1/batches/transfer", s.withLogging(s.handleTransferBatch))
 	s.mux.Handle("POST /v1/contracts/execute", s.withLogging(s.handleExecuteContract))
+	s.mux.Handle("POST /v1/accounts/create", s.withLogging(s.handleCreateAccount))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -270,6 +306,131 @@ func decodeHex(s string) ([]byte, error) {
 		out[i] = b
 	}
 	return out, nil
+}
+
+// --- Account creation -----------------------------------------------------
+
+type createAccountRequest struct {
+	// Optional human-readable label, persisted as the Hedera account
+	// memo (capped at 100 bytes server-side). Useful for grouping
+	// system-generated wallets in the operator's audit trail.
+	Label string `json:"label,omitempty"`
+	// Optional initial balance override, in tinybars. Defaults to
+	// `defaultInitialBalanceTinybars` (10 HBAR). Negative values are
+	// rejected; very large values are accepted but will fail the
+	// transaction if the operator has insufficient balance.
+	InitialBalanceTinybars int64 `json:"initialBalanceTinybars,omitempty"`
+}
+
+// defaultInitialBalanceTinybars is the funding amount used when a caller
+// doesn't supply one. 10 HBAR is enough to cover a few hundred HCS
+// submissions or NFT transfers, which is more than a typical new actor
+// will execute before they top up.
+const defaultInitialBalanceTinybars int64 = 10 * 100_000_000
+
+func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	if !s.allowAccountCreate(ip) {
+		s.logger.Warn("accounts/create rate limit hit", "ip", ip)
+		w.Header().Set("Retry-After", "3600")
+		writeError(w, http.StatusTooManyRequests, "account creation rate limit exceeded; retry later")
+		return
+	}
+
+	var req createAccountRequest
+	// Empty bodies are acceptable — both label and balance are optional.
+	// Decode best-effort and reject only on actually-malformed JSON.
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON body")
+			return
+		}
+	}
+	if req.InitialBalanceTinybars < 0 {
+		writeError(w, http.StatusBadRequest, "initialBalanceTinybars must be >= 0")
+		return
+	}
+	balance := req.InitialBalanceTinybars
+	if balance == 0 {
+		balance = defaultInitialBalanceTinybars
+	}
+
+	result, err := s.hedera.CreateAccount(r.Context(), balance, req.Label)
+	if err != nil {
+		s.logger.Error("account create failed", "error", err, "ip", ip)
+		writeError(w, http.StatusBadGateway, "account_create_failed")
+		return
+	}
+	// Intentionally do NOT log the generated private key; the publisher
+	// is a single-shot relay for the keypair to its eventual encrypted-
+	// at-rest home in the web app's DB. Log only the new account id +
+	// transaction id, which are already public-via-mirror-node.
+	s.logger.Info("account created",
+		"accountId", result.AccountID,
+		"createTxId", result.CreateTransactionID,
+		"ip", ip,
+	)
+	writeJSON(w, http.StatusOK, result)
+}
+
+// allowAccountCreate returns true if the given client IP is permitted to
+// issue another `POST /v1/accounts/create` request right now. Updates
+// the bucket on success so subsequent attempts are correctly counted.
+// An empty IP is treated as un-attributable and always rejected; we
+// would rather fail closed than offer an un-rate-limited bypass.
+func (s *Server) allowAccountCreate(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	now := time.Now()
+	cutoff := now.Add(-accountsCreateRateWindow)
+
+	s.accountsCreateMu.Lock()
+	defer s.accountsCreateMu.Unlock()
+
+	bucket, ok := s.accountsCreateBuckets[ip]
+	if !ok {
+		bucket = &accountCreateBucket{}
+		s.accountsCreateBuckets[ip] = bucket
+	}
+
+	// Compact the bucket: drop timestamps older than the window. A
+	// fresh slice keeps the underlying array from growing unbounded
+	// over a long-lived process.
+	kept := bucket.timestamps[:0]
+	for _, t := range bucket.timestamps {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	bucket.timestamps = kept
+
+	if len(bucket.timestamps) >= accountsCreateRateLimit {
+		return false
+	}
+	bucket.timestamps = append(bucket.timestamps, now)
+	return true
+}
+
+// clientIP extracts the best-effort source IP from the request. Honours
+// `X-Forwarded-For` when present (the publisher sits behind Fly's proxy
+// in production) but defends against header spoofing by only ever using
+// the *first* hop — that's the entry point of the edge proxy, the only
+// field a downstream relay cannot forge.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.Index(xff, ","); i >= 0 {
+			xff = xff[:i]
+		}
+		if ip := strings.TrimSpace(xff); ip != "" {
+			return ip
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 // --- Helpers --------------------------------------------------------------

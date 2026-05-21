@@ -1,23 +1,17 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 import { auth } from '../../auth';
 import {
   createActorForUser,
   OnboardingValidationError,
   type CreateActorInput,
+  type WalletCleartext,
 } from '../../lib/actor';
 
-/**
- * Result of attempting to onboard the current user. We deliberately return a
- * `state` object rather than throwing into the client; React's `useFormState`
- * (Server Actions form integration) expects a serialisable response.
- */
-export type OnboardingState =
-  | { status: 'idle' }
-  | { status: 'error'; issues: ReadonlyArray<{ path: string; message: string }> }
-  | { status: 'unauthenticated' };
+import { WALLET_HANDOFF_COOKIE, WALLET_HANDOFF_TTL_SECONDS, type OnboardingState } from './types';
 
 export async function submitOnboarding(
   _previous: OnboardingState,
@@ -36,8 +30,10 @@ export async function submitOnboarding(
     subnational: String(formData.get('subnational') ?? '').trim() || undefined,
   };
 
+  let walletCleartext: WalletCleartext | null = null;
   try {
-    await createActorForUser(input);
+    const result = await createActorForUser(input);
+    walletCleartext = result.walletCleartext;
   } catch (error) {
     if (error instanceof OnboardingValidationError) {
       return { status: 'error', issues: error.issues };
@@ -45,5 +41,38 @@ export async function submitOnboarding(
     throw error;
   }
 
+  if (walletCleartext) {
+    // Stash the cleartext wallet in an httpOnly cookie scoped to
+    // `/onboarding/wallet`. The cookie is signed by the Next.js
+    // platform layer and never reaches the client JS. The download
+    // page reads it once, renders the keys, then clears it via a
+    // separate server action.
+    const cookieStore = await cookies();
+    cookieStore.set({
+      name: WALLET_HANDOFF_COOKIE,
+      value: JSON.stringify(walletCleartext),
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/onboarding/wallet',
+      maxAge: WALLET_HANDOFF_TTL_SECONDS,
+    });
+    redirect('/onboarding/wallet');
+  }
+
+  // No wallet provisioned (publisher down, etc.). Drop the user on
+  // the dashboard; they'll see a "wallet pending" badge and can
+  // attempt to provision later via the wallet page.
+  redirect('/dashboard');
+}
+
+/**
+ * Clear the one-time wallet-handoff cookie after the user has
+ * confirmed they have saved their keys. Invoked from the
+ * `/onboarding/wallet` page's "I've saved them" button.
+ */
+export async function dismissWalletHandoff(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete({ name: WALLET_HANDOFF_COOKIE, path: '/onboarding/wallet' });
   redirect('/dashboard');
 }

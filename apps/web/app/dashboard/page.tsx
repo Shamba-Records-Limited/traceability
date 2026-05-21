@@ -58,7 +58,7 @@ const SECTIONS = [
     icon: Wallet,
     title: 'Hedera wallet',
     blurb:
-      'Link your Hedera account id so on-chain NFT transfers can land in your custody at handoff acceptance.',
+      'View the Hedera account that signs on your behalf, see it on Hashscan, or swap in your own existing wallet.',
     cta: 'Manage wallet',
   },
   {
@@ -97,12 +97,18 @@ export default async function DashboardPage() {
           {actor.hederaAccountId ? (
             <Badge tone="success">
               <Wallet className="h-3.5 w-3.5" />
-              Wallet linked
+              {actor.walletProvider === 'user_provided' ? 'Own wallet' : 'Wallet ready'}
             </Badge>
           ) : (
+            // After this PR, every onboarded actor has a wallet — this
+            // branch fires only when the publisher was unreachable
+            // during onboarding. The dashboard wallet page lets the
+            // actor finish setup either by retrying or by pasting their
+            // own wallet, so we surface the state as actionable rather
+            // than as a hard failure.
             <Badge tone="warning">
               <Wallet className="h-3.5 w-3.5" />
-              Wallet not linked
+              Wallet pending
             </Badge>
           )}
           {placeholderDid ? (

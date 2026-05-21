@@ -29,14 +29,39 @@ export const actors = pgTable(
       .default(sql`'{}'::jsonb`),
     /**
      * Hedera account id (e.g. `0.0.12345`) that custodies the actor's HTS
-     * NFTs. Required for on-chain handoff transfers; `null` until the
-     * actor completes the wallet-onboarding workstream (not in scope for
-     * the MVP). When both sides of a handoff have an account id,
-     * `acceptHandoff` calls the publisher's `/v1/batches/transfer`
-     * endpoint; otherwise the handoff settles in the off-chain log only
-     * and the on-chain transfer is deferred to a follow-up reconciler.
+     * NFTs and signs transactions emitted on their behalf. Auto-generated
+     * by the publisher's `/v1/accounts/create` endpoint at onboarding,
+     * but advanced users can replace this with their own existing wallet
+     * via `/dashboard/wallet` (which sets `walletProvider` to
+     * `user_provided`). Unique because two actors must never share an
+     * on-chain custody account.
      */
-    hederaAccountId: text('hedera_account_id'),
+    hederaAccountId: text('hedera_account_id').unique(),
+    /**
+     * AES-256-GCM ciphertext of the Hedera private key, base64-encoded.
+     * Format: `base64(iv ‖ ciphertext ‖ authTag)`; the KDF derives the
+     * encryption key from `AUTH_SECRET` via scrypt with a fixed salt
+     * (`shamba-wallet-v1`). See `apps/web/lib/wallet-crypto.ts`. This
+     * column is the single source of truth for the at-rest key; the
+     * cleartext is surfaced ONCE at onboarding and never retrieved from
+     * the DB except when the publisher needs the actor to sign a
+     * transaction (in which case the web side decrypts in-process and
+     * forwards to the publisher without persisting).
+     */
+    encryptedPrivateKey: text('encrypted_private_key'),
+    /**
+     * Provenance of the wallet:
+     *   - `system_generated`: created by the publisher's `/v1/accounts/create`
+     *     at onboarding; private key is custodied by us (encrypted at rest).
+     *   - `user_provided`: pasted by the actor on `/dashboard/wallet`; the
+     *     paste flow validates the key by signing a test transaction
+     *     before storing.
+     * Null is allowed only for backfilled rows from before this column
+     * existed; new actors must always have a non-null value. Enforced by
+     * application code rather than a DB constraint so legacy rows do not
+     * block migrations.
+     */
+    walletProvider: text('wallet_provider'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     /**
