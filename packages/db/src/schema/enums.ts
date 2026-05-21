@@ -17,7 +17,15 @@ export const actorRoleEnum = pgEnum('actor_role', [
   'competent_authority',
 ]);
 
+/**
+ * Commodity catalog. The first seven values are the EUDR Annex I
+ * commodities; the remainder are non-EUDR commodities (Kenyan agri
+ * exports + common cross-border crops). The EUDR pipeline narrows to
+ * the Annex I subset in `@shamba/shared-types` via `eudrCommoditySchema`
+ * — see the union there for the architectural rationale.
+ */
 export const commodityEnum = pgEnum('commodity', [
+  // EUDR Annex I
   'cattle',
   'cocoa',
   'coffee',
@@ -25,6 +33,22 @@ export const commodityEnum = pgEnum('commodity', [
   'rubber',
   'soya',
   'wood',
+  // Extended (non-EUDR)
+  'tea',
+  'avocado',
+  'macadamia',
+  'cashew',
+  'beans',
+  'maize',
+  'sugarcane',
+  'banana',
+  'mango',
+  'flowers',
+  'dairy',
+  'fish',
+  'pyrethrum',
+  'sisal',
+  'cassava',
 ]);
 
 export const processingStageEnum = pgEnum('processing_stage', [

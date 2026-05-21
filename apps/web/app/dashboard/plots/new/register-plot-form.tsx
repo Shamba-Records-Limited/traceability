@@ -2,19 +2,29 @@
 
 import { useActionState } from 'react';
 
+import { commodityLabel, eudrCommoditySchema, extendedCommoditySchema } from '@shamba/shared-types';
+
 import { submitRegisterPlot, type RegisterPlotState } from './actions';
 
 const initial: RegisterPlotState = { status: 'idle' };
 
-const COMMODITY_OPTIONS = [
-  { value: 'coffee', label: 'Coffee' },
-  { value: 'cocoa', label: 'Cocoa' },
-  { value: 'cattle', label: 'Cattle' },
-  { value: 'oil_palm', label: 'Oil palm' },
-  { value: 'rubber', label: 'Rubber' },
-  { value: 'soya', label: 'Soya' },
-  { value: 'wood', label: 'Wood' },
-] as const;
+// concurrent edit: feat/expand-commodity-list — only the commodity options
+// below were touched here. If a concurrent PR rewrites the map / textarea
+// section, keep the two `*_COMMODITY_OPTIONS` arrays + their checkbox
+// fieldset and discard the legacy single `COMMODITY_OPTIONS` array.
+//
+// Two-tier rendering: EUDR Annex I commodities first under a regulated
+// header, then the extended (non-EUDR) catalog. The visual split mirrors
+// the type-level split in `@shamba/shared-types` so operators can tell at
+// a glance which commodities flow through the EUDR DDS pipeline.
+const EUDR_COMMODITY_OPTIONS = eudrCommoditySchema.options.map((value) => ({
+  value,
+  label: commodityLabel[value],
+}));
+const EXTENDED_COMMODITY_OPTIONS = extendedCommoditySchema.options.map((value) => ({
+  value,
+  label: commodityLabel[value],
+}));
 
 const SAMPLE_POLYGON = JSON.stringify(
   {
@@ -54,20 +64,43 @@ export function RegisterPlotForm({ defaultCountry }: { defaultCountry: string })
         </Alert>
       )}
 
-      <fieldset className="space-y-2">
+      <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-soil-800">Commodities</legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {COMMODITY_OPTIONS.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 text-sm text-soil-800">
-              <input
-                type="checkbox"
-                name="commodities"
-                value={opt.value}
-                className="h-4 w-4 rounded border-soil-300 text-leaf-600 focus:ring-leaf-500"
-              />
-              {opt.label}
-            </label>
-          ))}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-leaf-700">
+            EUDR Annex I (regulated)
+          </p>
+          <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {EUDR_COMMODITY_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 text-sm text-soil-800">
+                <input
+                  type="checkbox"
+                  name="commodities"
+                  value={opt.value}
+                  className="h-4 w-4 rounded border-soil-300 text-leaf-600 focus:ring-leaf-500"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-soil-600">
+            Other commodities
+          </p>
+          <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {EXTENDED_COMMODITY_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 text-sm text-soil-800">
+                <input
+                  type="checkbox"
+                  name="commodities"
+                  value={opt.value}
+                  className="h-4 w-4 rounded border-soil-300 text-leaf-600 focus:ring-leaf-500"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
         </div>
         {issueByPath.commodities ? (
           <p className="text-xs text-red-700">{issueByPath.commodities}</p>

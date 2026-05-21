@@ -3,19 +3,24 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 
+import { commodityLabel, eudrCommoditySchema, extendedCommoditySchema } from '@shamba/shared-types';
+
 import { submitCreateBatch, type CreateBatchState } from './actions';
 
 const initial: CreateBatchState = { status: 'idle' };
 
-const COMMODITY_OPTIONS = [
-  { value: 'coffee', label: 'Coffee' },
-  { value: 'cocoa', label: 'Cocoa' },
-  { value: 'cattle', label: 'Cattle' },
-  { value: 'oil_palm', label: 'Oil palm' },
-  { value: 'rubber', label: 'Rubber' },
-  { value: 'soya', label: 'Soya' },
-  { value: 'wood', label: 'Wood' },
-] as const;
+// Render commodities in two `<optgroup>`s so the EUDR Annex I subset is
+// visually distinct from the extended (non-EUDR) catalog. The DDS pipeline
+// downstream still narrows to the regulated subset; this UI just lets
+// operators trace non-EUDR commodities through the same primitives.
+const EUDR_COMMODITY_OPTIONS = eudrCommoditySchema.options.map((value) => ({
+  value,
+  label: commodityLabel[value],
+}));
+const EXTENDED_COMMODITY_OPTIONS = extendedCommoditySchema.options.map((value) => ({
+  value,
+  label: commodityLabel[value],
+}));
 
 const STAGE_OPTIONS = [
   { value: 'raw', label: 'Raw (farm gate)' },
@@ -100,11 +105,20 @@ export function NewBatchForm({ eligiblePlots }: { eligiblePlots: ReadonlyArray<E
             required
             className="block h-11 w-full rounded-md border border-soil-300 bg-white px-3 text-soil-900 shadow-sm focus:border-leaf-500 focus:outline-none focus:ring-2 focus:ring-leaf-500"
           >
-            {COMMODITY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+            <optgroup label="EUDR Annex I (regulated)">
+              {EUDR_COMMODITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Other commodities">
+              {EXTENDED_COMMODITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </Field>
         <Field

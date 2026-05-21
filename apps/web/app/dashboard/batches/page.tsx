@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { commodityLabel } from '@shamba/shared-types';
+
 import { auth } from '../../../auth';
 import { getActorForUser } from '../../../lib/actor';
 import { listBatchesForActor } from '../../../lib/batch';
@@ -9,15 +11,10 @@ export const metadata = {
   title: 'Batches',
 };
 
-const COMMODITY_LABELS: Record<string, string> = {
-  cattle: 'Cattle',
-  cocoa: 'Cocoa',
-  coffee: 'Coffee',
-  oil_palm: 'Oil palm',
-  rubber: 'Rubber',
-  soya: 'Soya',
-  wood: 'Wood',
-};
+// Source the label map from the shared catalog. Cast through
+// `Record<string, string>` so the lookup falls back gracefully on raw
+// values if the DB ever returns one not in the current enum.
+const COMMODITY_LABELS: Record<string, string> = commodityLabel;
 
 const STAGE_LABELS: Record<string, string> = {
   raw: 'Raw',

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { commoditySchema } from './commodity';
+import { eudrCommoditySchema } from './commodity';
 import { countryCodeSchema, iso8601Schema, uuidSchema } from './common';
 import { plotGeometrySchema } from './geometry';
 
@@ -45,7 +45,9 @@ export const ddsSchema = z.object({
   operatorActorId: uuidSchema, // the EU operator/importer submitting the DDS
   operatorEuReference: z.string().max(120),
   productDescription: z.string().min(1).max(500),
-  commodity: commoditySchema,
+  // EUDR DDS only applies to Annex I commodities; narrow to the regulated
+  // set so the type system refuses an extended-catalog commodity here.
+  commodity: eudrCommoditySchema,
   hsCode: z.string().regex(/^\d{4,10}$/, 'must be a numeric HS / CN code (4-10 digits)'),
   netMassKg: z.number().positive().optional(),
   volumeM3: z.number().positive().optional(),
