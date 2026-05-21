@@ -2,8 +2,9 @@
 
 This guide deploys the full Shamba stack on a single Linux host using
 Docker Compose: Caddy (reverse proxy + automatic TLS) → Next.js web
-app → Go publisher service → PostgreSQL with PostGIS → optional
-Mailpit for inspecting magic-link emails during testing.
+app → Go publisher service → Go DID-issuer service → PostgreSQL with
+PostGIS → optional Mailpit for inspecting magic-link emails during
+testing.
 
 It's intentionally **simple**: one host, one compose file, one TLS
 domain. Production deployments will eventually want a managed Postgres,
@@ -98,8 +99,12 @@ First build takes ~5 minutes (downloads base images, compiles Next.js
 docker compose -f infra/self-host/docker-compose.yml ps
 ```
 
-Expect five healthy services: `caddy`, `web`, `hedera-publisher`,
-`postgres`, `mailpit`.
+Expect six healthy services: `caddy`, `web`, `hedera-publisher`,
+`did-issuer`, `postgres`, `mailpit`. The web service points at the
+in-stack `did-issuer` by default (`http://did-issuer:8081`), which is
+what rotates the `did:hedera:pending:*` placeholder DIDs on actor
+records into real `did:hedera:testnet:*` values as the reconciler
+runs.
 
 ## 5. Run the DB migrations
 

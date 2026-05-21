@@ -6,7 +6,8 @@
 #
 # Differs from `infra/docker/docker-compose.yml` (which is the local-dev
 # stack) by bundling the actual application services — Caddy reverse
-# proxy, apps/web, hedera-publisher — alongside the data services.
+# proxy, apps/web, hedera-publisher, did-issuer — alongside the data
+# services.
 #
 # Configuration: copy `infra/self-host/.env.example` to
 # `infra/self-host/.env` (gitignored via `.env*`) and fill in the
@@ -69,7 +70,10 @@ services:
       # Hedera services
       HEDERA_PUBLISHER_URL: http://hedera-publisher:8080
       HEDERA_PUBLISHER_TIMEOUT_MS: ${HEDERA_PUBLISHER_TIMEOUT_MS:-15000}
-      HEDERA_DID_ISSUER_URL: ${HEDERA_DID_ISSUER_URL:-}
+      # Default the DID-issuer URL to the in-stack service. Operators
+      # who want to point the web app at an external issuer can override
+      # this in `.env`.
+      HEDERA_DID_ISSUER_URL: ${HEDERA_DID_ISSUER_URL:-http://did-issuer:8081}
       # Reconciler cron
       CRON_SECRET: ${CRON_SECRET}
       # Deforestation
@@ -86,6 +90,10 @@ services:
         condition: service_healthy
       hedera-publisher:
         condition: service_started
+      # DID issuance is async and the reconciler will retry on failure,
+      # so we only wait for the container to start — not to be healthy.
+      did-issuer:
+        condition: service_started
 
   # ---------- Hedera publisher ----------
   hedera-publisher:
@@ -94,14 +102,42 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      PUBLISHER_LISTEN_ADDR: ":8080"
+      HTTP_PORT: "8080"
       HEDERA_NETWORK: ${HEDERA_NETWORK:-testnet}
       HEDERA_OPERATOR_ID: ${HEDERA_OPERATOR_ID}
       HEDERA_OPERATOR_PRIVATE_KEY: ${HEDERA_OPERATOR_PRIVATE_KEY}
       HEDERA_TREASURY_ID: ${HEDERA_TREASURY_ID}
       HEDERA_TREASURY_PRIVATE_KEY: ${HEDERA_TREASURY_PRIVATE_KEY}
+    # The image is distroless (no shell, no wget, no curl), so the
+    # probe is the binary self-calling /healthz over loopback via its
+    # `-healthcheck` flag.
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      test: ["CMD", "/usr/local/bin/publisher", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------- DID issuer ----------
+  # Mints Hedera DIDs for actors (cooperatives, farmers, exporters).
+  # The web service writes a placeholder `did:hedera:pending:<actorId>`
+  # at signup and the reconciler later asks this service to mint a real
+  # DID, rotating the placeholder to `did:hedera:testnet:<topicId>`.
+  did-issuer:
+    build:
+      context: ../../services/did-issuer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      HTTP_PORT: "8081"
+      HEDERA_NETWORK: ${HEDERA_NETWORK:-testnet}
+      HEDERA_OPERATOR_ID: ${HEDERA_OPERATOR_ID}
+      HEDERA_OPERATOR_PRIVATE_KEY: ${HEDERA_OPERATOR_PRIVATE_KEY}
+      HEDERA_TREASURY_ID: ${HEDERA_TREASURY_ID}
+      HEDERA_TREASURY_PRIVATE_KEY: ${HEDERA_TREASURY_PRIVATE_KEY}
+    # Same distroless-base self-probe trick as hedera-publisher above.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/issuer", "-healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
