@@ -4,6 +4,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,11 +18,46 @@ import (
 	"github.com/Shamba-Records-Limited/traceability/services/did-issuer/internal/server"
 )
 
+// healthcheckFlag lets the container image act as its own probe. The
+// runtime base is `gcr.io/distroless/static`, which has no shell, no
+// `wget`, and no `curl`, so any compose-level HEALTHCHECK must be a
+// self-call into this binary.
+var healthcheckFlag = flag.Bool("healthcheck", false,
+	"perform an HTTP GET against the local /healthz endpoint and exit 0 on 200, 1 otherwise")
+
 func main() {
+	flag.Parse()
+	if *healthcheckFlag {
+		os.Exit(runHealthcheck())
+	}
 	if err := run(); err != nil {
 		slog.Error("fatal", "error", err)
 		os.Exit(1)
 	}
+}
+
+// runHealthcheck calls the service's own /healthz endpoint over loopback
+// and returns 0 on a 2xx response, 1 otherwise.
+func runHealthcheck() int {
+	port := os.Getenv("HTTP_PORT")
+	if port == "" {
+		port = "8081"
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%s/healthz", port)
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "healthcheck: %v\n", err)
+		return 1
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Fprintf(os.Stderr, "healthcheck: status %d\n", resp.StatusCode)
+		return 1
+	}
+	return 0
 }
 
 func run() error {
