@@ -7,7 +7,13 @@ import { hashApiKey, looksLikeApiKey } from './api-key-crypto';
 // Pure constants live in a DB-free sibling so client components can
 // import them without bundling the postgres driver.
 import type { ApiScope } from './api-scopes';
-export { API_SCOPES, type ApiScope } from './api-scopes';
+export {
+  API_SCOPES,
+  API_SCOPE_GROUPS,
+  isWriteScope,
+  type ApiScope,
+  type ApiScopeGroup,
+} from './api-scopes';
 
 const { apiKeys } = schema;
 
