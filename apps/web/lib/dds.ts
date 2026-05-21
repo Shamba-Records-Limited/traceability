@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { schema } from '@shamba/db';
+import { isEudrRegulated, type Commodity } from '@shamba/shared-types';
 
 import { db } from './db';
 import { publishEvent } from './hedera-publisher';
@@ -165,6 +166,16 @@ export async function generateDdsBundle(input: GenerateInput): Promise<{
   }
   if (batch.status === 'voided') {
     throw new DdsGenerationError(409, 'cannot generate a DDS for a voided batch');
+  }
+  // EUDR DDS only applies to Annex I commodities. The platform's commodity
+  // union supports a wider catalog so non-EUDR supply chains can be traced
+  // through the same primitives, but the regulated path stops here: refuse
+  // to mint a DDS bundle for anything outside the Annex I subset.
+  if (!isEudrRegulated(batch.commodity as Commodity)) {
+    throw new DdsGenerationError(
+      409,
+      `commodity '${batch.commodity}' is not EUDR Annex I; DDS bundles are only valid for cattle, cocoa, coffee, oil_palm, rubber, soya, or wood`,
+    );
   }
 
   const [operator] = await db

@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 
-import type { Commodity, PlotGeometry } from '@shamba/shared-types';
+import { allCommodities, type Commodity, type PlotGeometry } from '@shamba/shared-types';
 
 import { registerPlot, PlotValidationError, type RegisterPlotInput } from './plot';
 
@@ -47,15 +47,9 @@ interface ParsedCsvRow {
   subnational?: string;
 }
 
-const ALLOWED_COMMODITIES: ReadonlySet<Commodity> = new Set([
-  'cattle',
-  'cocoa',
-  'coffee',
-  'oil_palm',
-  'rubber',
-  'soya',
-  'wood',
-]);
+// Anchored on the shared catalog so adding a commodity in shared-types
+// automatically widens the CSV importer's accepted set.
+const ALLOWED_COMMODITIES: ReadonlySet<Commodity> = new Set(allCommodities);
 
 function parseCommodityList(raw: string | undefined): Commodity[] | { error: string } {
   if (!raw || !raw.trim()) {

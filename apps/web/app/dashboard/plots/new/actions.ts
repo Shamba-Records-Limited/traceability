@@ -5,17 +5,12 @@ import { redirect } from 'next/navigation';
 import { auth } from '../../../../auth';
 import { getActorForUser } from '../../../../lib/actor';
 import { registerPlot, PlotValidationError, type RegisterPlotInput } from '../../../../lib/plot';
-import type { Commodity, PlotGeometry } from '@shamba/shared-types';
+import { allCommodities, type Commodity, type PlotGeometry } from '@shamba/shared-types';
 
-const ALLOWED_COMMODITIES: ReadonlySet<Commodity> = new Set([
-  'cattle',
-  'cocoa',
-  'coffee',
-  'oil_palm',
-  'rubber',
-  'soya',
-  'wood',
-]);
+// Membership test against the full commodity union (EUDR Annex I + the
+// extended non-EUDR catalog). Anchored on the shared catalog so a future
+// commodity addition flows through here automatically.
+const ALLOWED_COMMODITIES: ReadonlySet<Commodity> = new Set(allCommodities);
 
 export type RegisterPlotState =
   | { status: 'idle' }

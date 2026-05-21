@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { ExternalLink, Hourglass, LandPlot, MapPin, Sprout, Upload } from 'lucide-react';
 import type { GeoJsonObject } from 'geojson';
 
+import { commodityLabel } from '@shamba/shared-types';
+
 import { auth } from '../../../auth';
 import { getActorForUser } from '../../../lib/actor';
 import { listPlotsForActor } from '../../../lib/plot';
@@ -14,15 +16,11 @@ export const metadata = {
   title: 'Plots',
 };
 
-const COMMODITY_LABELS: Record<string, string> = {
-  cattle: 'Cattle',
-  cocoa: 'Cocoa',
-  coffee: 'Coffee',
-  oil_palm: 'Oil palm',
-  rubber: 'Rubber',
-  soya: 'Soya',
-  wood: 'Wood',
-};
+// Source the label map from the shared catalog so plots/batches/audit
+// stay in lock-step automatically. Cast through `Record<string, string>`
+// so the lookup falls back gracefully if the DB ever returns a value not
+// in the current enum.
+const COMMODITY_LABELS: Record<string, string> = commodityLabel;
 
 function formatHectares(value: number): string {
   if (value < 0.01) return '< 0.01 ha';

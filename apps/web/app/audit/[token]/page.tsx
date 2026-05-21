@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 
+import { commodityLabel } from '@shamba/shared-types';
+
 import { resolveAuditShare } from '../../../lib/audit-share';
 
 export const metadata = {
@@ -11,15 +13,7 @@ export const metadata = {
 // unrevoked token can view the bundle.
 export const dynamic = 'force-dynamic';
 
-const COMMODITY_LABELS: Record<string, string> = {
-  cattle: 'Cattle',
-  cocoa: 'Cocoa',
-  coffee: 'Coffee',
-  oil_palm: 'Oil palm',
-  rubber: 'Rubber',
-  soya: 'Soya',
-  wood: 'Wood',
-};
+const COMMODITY_LABELS: Record<string, string> = commodityLabel;
 
 export default async function AuditPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

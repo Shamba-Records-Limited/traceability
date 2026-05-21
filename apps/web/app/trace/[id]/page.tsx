@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { schema } from '@shamba/db';
+import { commodityLabel } from '@shamba/shared-types';
 
 import { db } from '../../../lib/db';
 import { CERTIFICATION_SCHEME_LABELS } from '../../../lib/certification';
@@ -20,15 +21,7 @@ export const metadata = {
 // audience.
 export const dynamic = 'force-dynamic';
 
-const COMMODITY_LABELS: Record<string, string> = {
-  cattle: 'Cattle',
-  cocoa: 'Cocoa',
-  coffee: 'Coffee',
-  oil_palm: 'Oil palm',
-  rubber: 'Rubber',
-  soya: 'Soya',
-  wood: 'Wood',
-};
+const COMMODITY_LABELS: Record<string, string> = commodityLabel;
 
 const STAGE_LABELS: Record<string, string> = {
   raw: 'Raw (farm gate)',
