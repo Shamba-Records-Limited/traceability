@@ -36,12 +36,18 @@ FROM base AS build
 ARG NEXT_PUBLIC_APP_URL
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NEXT_PHASE=phase-production-build
-# Pull every node_modules directory the deps stage produced. pnpm puts
-# the real packages under `node_modules/.pnpm` and uses symlinks in the
-# per-workspace dirs, so all three trees need to come across to preserve
-# resolution.
+# Pull every node_modules tree pnpm created. pnpm's isolated linker
+# materialises a per-package node_modules at each workspace directory
+# (each one full of symlinks back to /app/node_modules/.pnpm/...).
+# Next.js `transpilePackages` compiles the workspace packages from
+# source at build time, and module resolution starts at each
+# transpiled file's directory — so packages/db/src/schema/actors.ts
+# resolving `import 'drizzle-orm'` needs `packages/db/node_modules`
+# to exist. Carrying just the root and apps/web tree wasn't enough.
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/packages/shared-types/node_modules ./packages/shared-types/node_modules
 COPY . .
 # `next build` needs a NEXT_PUBLIC_APP_URL at build time so the metadataBase
 # is correct in the emitted RSC payload. Pass via --build-arg or accept the
