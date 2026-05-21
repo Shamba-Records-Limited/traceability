@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	hiero "github.com/hiero-ledger/hiero-sdk-go/v2/sdk"
@@ -399,6 +400,70 @@ func functionSelectorBytes(selector string) ([]byte, error) {
 		out[i] = b
 	}
 	return out, nil
+}
+
+// CreateAccount generates an ECDSA secp256k1 keypair on the publisher and
+// submits an AccountCreateTransaction signed by the operator. The new
+// account uses the generated ECDSA public key as both its account key AND
+// its EVM-alias source via SetECDSAKeyWithAlias, so the resulting account
+// is reachable on Hedera's EVM via its derived 0x address as well as via
+// its native `0.0.<num>` form.
+//
+// The generated private key is returned in DER form ONCE — the publisher
+// never persists it. Callers are expected to encrypt-at-rest immediately
+// and surface the cleartext to the end user exactly once at onboarding.
+func (c *sdkClient) CreateAccount(ctx context.Context, initialBalanceTinybars int64, memo string) (CreateAccountResult, error) {
+	if err := ctx.Err(); err != nil {
+		return CreateAccountResult{}, err
+	}
+	if initialBalanceTinybars < 0 {
+		return CreateAccountResult{}, errors.New("initialBalanceTinybars must be >= 0")
+	}
+
+	privateKey, err := hiero.PrivateKeyGenerateEcdsa()
+	if err != nil {
+		return CreateAccountResult{}, fmt.Errorf("generate ecdsa key: %w", err)
+	}
+	publicKey := privateKey.PublicKey()
+	evmAddress := publicKey.ToEvmAddress()
+	if !strings.HasPrefix(evmAddress, "0x") {
+		evmAddress = "0x" + evmAddress
+	}
+
+	tx := hiero.NewAccountCreateTransaction().
+		SetECDSAKeyWithAlias(privateKey).
+		SetInitialBalance(hiero.HbarFromTinybar(initialBalanceTinybars))
+	if memo != "" {
+		// Hedera account memos are capped at 100 bytes; truncate rather
+		// than reject so the caller's "label" is best-effort. The cap
+		// is enforced by the network too — exceeding it returns
+		// `MEMO_TOO_LONG`.
+		if len(memo) > 100 {
+			memo = memo[:100]
+		}
+		tx = tx.SetAccountMemo(memo)
+	}
+
+	resp, err := tx.Execute(c.client)
+	if err != nil {
+		return CreateAccountResult{}, fmt.Errorf("execute account create: %w", err)
+	}
+	receipt, err := resp.SetValidateStatus(true).GetReceipt(c.client)
+	if err != nil {
+		return CreateAccountResult{}, fmt.Errorf("account create receipt: %w", err)
+	}
+	if receipt.AccountID == nil {
+		return CreateAccountResult{}, errors.New("account create receipt did not include an account id")
+	}
+
+	return CreateAccountResult{
+		AccountID:              receipt.AccountID.String(),
+		PublicKey:              publicKey.StringDer(),
+		PrivateKey:             privateKey.StringDer(),
+		EvmAddress:             evmAddress,
+		CreateTransactionID:    resp.TransactionID.String(),
+		InitialBalanceTinybars: initialBalanceTinybars,
+	}, nil
 }
 
 func (c *sdkClient) Close() error {
