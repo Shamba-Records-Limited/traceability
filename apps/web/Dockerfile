@@ -55,6 +55,11 @@ COPY . .
 # runtime-only and supplied via docker-compose / Caddy / .env.
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
 RUN pnpm --filter @shamba/web build
+# Next.js's `public/` directory is optional — we don't ship any static
+# assets there yet, so the repo doesn't include the directory. The
+# runtime stage unconditionally COPYs apps/web/public though, so make
+# sure it always exists as at least an empty dir.
+RUN mkdir -p apps/web/public
 
 # ---- runtime stage --------------------------------------------------------
 FROM node:${NODE_VERSION} AS runtime
