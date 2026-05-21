@@ -1,0 +1,13 @@
+# Ignore the same things git ignores, plus build outputs that the
+# multi-stage build creates itself. Keeps the build context small.
+.next
+.turbo
+node_modules
+.git
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+coverage
+*.log
