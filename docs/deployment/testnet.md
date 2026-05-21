@@ -208,29 +208,29 @@ vercel link  # creates a Vercel project, links the repo
 
 Set environment variables (use the Vercel dashboard or `vercel env add`):
 
-| Variable | Value |
-| --- | --- |
-| `NODE_ENV` | `production` |
-| `NEXT_PUBLIC_APP_URL` | `https://<your-project>.vercel.app` |
-| `NEXT_PUBLIC_HASHSCAN_BASE` | `https://hashscan.io/testnet` |
-| `AUTH_SECRET` | `openssl rand -base64 32` |
-| `AUTH_URL` | `https://<your-project>.vercel.app` |
-| `EMAIL_SERVER_HOST` | `smtp.resend.com` |
-| `EMAIL_SERVER_PORT` | `465` |
-| `EMAIL_SERVER_USER` | `resend` |
-| `EMAIL_SERVER_PASSWORD` | your Resend API key |
-| `EMAIL_FROM` | `onboarding@resend.dev` (or your verified sender) |
-| `DATABASE_URL` | Neon pooled connection string |
-| `HEDERA_PUBLISHER_URL` | `https://shamba-publisher-yourname.fly.dev` |
-| `HEDERA_PUBLISHER_TIMEOUT_MS` | `15000` |
-| `HEDERA_DID_ISSUER_URL` | *(optional, leave blank for now — DIDs use a placeholder until we deploy this service too)* |
-| `CRON_SECRET` | `openssl rand -base64 32` |
-| `DEFORESTATION_PROVIDER` | `mock` (or `gfw` if you got a GFW key) |
-| `GFW_API_KEY` | *(only if `DEFORESTATION_PROVIDER=gfw`)* |
-| `REGISTRY_CONTRACTS_ENABLED` | `true` |
-| `HEDERA_PLOT_REGISTRY_ID` | `0.0.XXX` from step 4 |
-| `HEDERA_BATCH_REGISTRY_ID` | `0.0.YYY` from step 4 |
-| `HEDERA_REGISTRY_GAS_LIMIT` | `500000` |
+| Variable                      | Value                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                    | `production`                                                                                |
+| `NEXT_PUBLIC_APP_URL`         | `https://<your-project>.vercel.app`                                                         |
+| `NEXT_PUBLIC_HASHSCAN_BASE`   | `https://hashscan.io/testnet`                                                               |
+| `AUTH_SECRET`                 | `openssl rand -base64 32`                                                                   |
+| `AUTH_URL`                    | `https://<your-project>.vercel.app`                                                         |
+| `EMAIL_SERVER_HOST`           | `smtp.resend.com`                                                                           |
+| `EMAIL_SERVER_PORT`           | `465`                                                                                       |
+| `EMAIL_SERVER_USER`           | `resend`                                                                                    |
+| `EMAIL_SERVER_PASSWORD`       | your Resend API key                                                                         |
+| `EMAIL_FROM`                  | `onboarding@resend.dev` (or your verified sender)                                           |
+| `DATABASE_URL`                | Neon pooled connection string                                                               |
+| `HEDERA_PUBLISHER_URL`        | `https://shamba-publisher-yourname.fly.dev`                                                 |
+| `HEDERA_PUBLISHER_TIMEOUT_MS` | `15000`                                                                                     |
+| `HEDERA_DID_ISSUER_URL`       | _(optional, leave blank for now — DIDs use a placeholder until we deploy this service too)_ |
+| `CRON_SECRET`                 | `openssl rand -base64 32`                                                                   |
+| `DEFORESTATION_PROVIDER`      | `mock` (or `gfw` if you got a GFW key)                                                      |
+| `GFW_API_KEY`                 | _(only if `DEFORESTATION_PROVIDER=gfw`)_                                                    |
+| `REGISTRY_CONTRACTS_ENABLED`  | `true`                                                                                      |
+| `HEDERA_PLOT_REGISTRY_ID`     | `0.0.XXX` from step 4                                                                       |
+| `HEDERA_BATCH_REGISTRY_ID`    | `0.0.YYY` from step 4                                                                       |
+| `HEDERA_REGISTRY_GAS_LIMIT`   | `500000`                                                                                    |
 
 Deploy:
 

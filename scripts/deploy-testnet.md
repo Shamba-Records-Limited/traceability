@@ -27,9 +27,11 @@ cd ../..
 ```
 
 Verify in the Neon SQL editor:
+
 ```sql
 SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';
 ```
+
 Expect ~15 tables.
 
 ## 2. Deploy the publisher to Fly.io
@@ -170,14 +172,14 @@ vercel --prod
 
 ## 6. If something fails
 
-| Symptom | Likely cause | Where to look |
-|---|---|---|
-| `vercel --prod` fails on the build | Some env var missing | `vercel env ls production` |
-| Plot creation hangs | Publisher unreachable | `flyctl logs --app $FLY_PUBLISHER_APP` |
-| `(pending HCS commit)` never clears | Reconciler not running | Vercel → Functions → `/api/cron/reconcile` runtime logs |
-| Magic-link email never arrives | Resend block / wrong sender | Resend dashboard → Logs |
-| `forge script` fails with "insufficient funds" | Operator HBAR depleted | `portal.hedera.com` → Refill button |
-| HCS publish works, EVM registry doesn't | `REGISTRY_CONTRACTS_ENABLED` not set or wrong contract IDs | Vercel env vars |
+| Symptom                                        | Likely cause                                               | Where to look                                           |
+| ---------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| `vercel --prod` fails on the build             | Some env var missing                                       | `vercel env ls production`                              |
+| Plot creation hangs                            | Publisher unreachable                                      | `flyctl logs --app $FLY_PUBLISHER_APP`                  |
+| `(pending HCS commit)` never clears            | Reconciler not running                                     | Vercel → Functions → `/api/cron/reconcile` runtime logs |
+| Magic-link email never arrives                 | Resend block / wrong sender                                | Resend dashboard → Logs                                 |
+| `forge script` fails with "insufficient funds" | Operator HBAR depleted                                     | `portal.hedera.com` → Refill button                     |
+| HCS publish works, EVM registry doesn't        | `REGISTRY_CONTRACTS_ENABLED` not set or wrong contract IDs | Vercel env vars                                         |
 
 ## 7. Production-tag the deploy
 

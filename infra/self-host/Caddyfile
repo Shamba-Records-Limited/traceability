@@ -1,0 +1,81 @@
+# Caddy reverse-proxy config for the Shamba Traceability self-hosted
+# stack. Caddy provisions Let's Encrypt certs automatically when
+# SHAMBA_DOMAIN is publicly resolvable; for LAN-only deployments,
+# override the global block below to switch to internal-issued certs.
+#
+# Variables (set in `infra/self-host/.env`):
+#   SHAMBA_DOMAIN          — the public hostname (e.g. demo.example.com)
+#   SHAMBA_MAILPIT_DOMAIN  — optional; if set, Mailpit's web UI is
+#                            exposed at this hostname (for operators
+#                            who want remote access to inspect mail).
+#   ACME_EMAIL             — contact email for Let's Encrypt
+#                            registration.
+
+{
+	email {$ACME_EMAIL}
+
+	# Security headers applied to every server below. Defaults that
+	# any production deploy should have.
+	servers {
+		strict_sni_host on
+	}
+}
+
+# ---- Main app -------------------------------------------------------------
+
+{$SHAMBA_DOMAIN} {
+	encode zstd gzip
+
+	# Security headers.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "interest-cohort=(), camera=(), microphone=(), geolocation=(self)"
+		# Conservative CSP. Leaflet tiles come from openstreetmap.org;
+		# Hashscan + mirror node calls are made server-side so they
+		# don't need a connect-src allowance from the browser.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		# Remove server fingerprinting headers Caddy adds by default.
+		-Server
+	}
+
+	# Health check route. Bypasses HTTPS upgrade for local probes.
+	@health path /healthz
+	respond @health 200
+
+	reverse_proxy web:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# ---- Mailpit (optional) ---------------------------------------------------
+#
+# The Mailpit web UI lives at port 8025 and lets an operator inspect
+# magic-link emails when running with the in-stack Mailpit. Only
+# expose it if SHAMBA_MAILPIT_DOMAIN is set, otherwise this whole
+# block is skipped.
+
+{$SHAMBA_MAILPIT_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Optional HTTP basic auth. To enable:
+	#   1. Generate a hash:  caddy hash-password
+	#   2. Uncomment the basic_auth block and paste the user/hash.
+	# basic_auth {
+	#   admin <hash>
+	# }
+
+	reverse_proxy mailpit:8025
+}

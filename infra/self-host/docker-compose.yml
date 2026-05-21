@@ -1,0 +1,150 @@
+# =============================================================================
+# Production-ish docker-compose stack for self-hosting Shamba Traceability
+# on a single VM / LXC container with Docker installed.
+#
+#   docker compose -f infra/self-host/docker-compose.yml up -d
+#
+# Differs from `infra/docker/docker-compose.yml` (which is the local-dev
+# stack) by bundling the actual application services — Caddy reverse
+# proxy, apps/web, hedera-publisher — alongside the data services.
+#
+# Configuration: copy `infra/self-host/.env.example` to
+# `infra/self-host/.env` (gitignored via `.env*`) and fill in the
+# operator-specific values. docker compose picks `.env` up
+# automatically.
+# =============================================================================
+
+# Don't pin the compose schema version; modern compose ignores it
+# and warns. Compose v2+ infers what it needs from the rest of the
+# file.
+
+services:
+  # ---------- Reverse proxy + TLS termination ----------
+  # Caddy auto-provisions Let's Encrypt certs when SHAMBA_DOMAIN is a
+  # publicly-resolvable hostname; otherwise it serves an internal-CA
+  # cert that the operator can trust manually on their LAN devices.
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # QUIC / HTTP-3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      SHAMBA_DOMAIN: ${SHAMBA_DOMAIN}
+      SHAMBA_MAILPIT_DOMAIN: ${SHAMBA_MAILPIT_DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL}
+    depends_on:
+      web:
+        condition: service_started
+
+  # ---------- Web app ----------
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      # Public + auth
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_HASHSCAN_BASE: ${NEXT_PUBLIC_HASHSCAN_BASE:-https://hashscan.io/testnet}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${NEXT_PUBLIC_APP_URL}
+      # Magic-link email (Mailpit-friendly defaults; override for prod SMTP)
+      EMAIL_SERVER_HOST: ${EMAIL_SERVER_HOST:-mailpit}
+      EMAIL_SERVER_PORT: ${EMAIL_SERVER_PORT:-1025}
+      EMAIL_SERVER_USER: ${EMAIL_SERVER_USER:-}
+      EMAIL_SERVER_PASSWORD: ${EMAIL_SERVER_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@shamba.local}
+      # Database
+      DATABASE_URL: postgres://${POSTGRES_USER:-shamba}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shamba}?sslmode=disable
+      # Hedera services
+      HEDERA_PUBLISHER_URL: http://hedera-publisher:8080
+      HEDERA_PUBLISHER_TIMEOUT_MS: ${HEDERA_PUBLISHER_TIMEOUT_MS:-15000}
+      HEDERA_DID_ISSUER_URL: ${HEDERA_DID_ISSUER_URL:-}
+      # Reconciler cron
+      CRON_SECRET: ${CRON_SECRET}
+      # Deforestation
+      DEFORESTATION_PROVIDER: ${DEFORESTATION_PROVIDER:-mock}
+      GFW_API_KEY: ${GFW_API_KEY:-}
+      GFW_DATASET_VERSION: ${GFW_DATASET_VERSION:-latest}
+      # EVM registry
+      REGISTRY_CONTRACTS_ENABLED: ${REGISTRY_CONTRACTS_ENABLED:-false}
+      HEDERA_PLOT_REGISTRY_ID: ${HEDERA_PLOT_REGISTRY_ID:-}
+      HEDERA_BATCH_REGISTRY_ID: ${HEDERA_BATCH_REGISTRY_ID:-}
+      HEDERA_REGISTRY_GAS_LIMIT: ${HEDERA_REGISTRY_GAS_LIMIT:-500000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      hedera-publisher:
+        condition: service_started
+
+  # ---------- Hedera publisher ----------
+  hedera-publisher:
+    build:
+      context: ../../services/hedera-publisher
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PUBLISHER_LISTEN_ADDR: ":8080"
+      HEDERA_NETWORK: ${HEDERA_NETWORK:-testnet}
+      HEDERA_OPERATOR_ID: ${HEDERA_OPERATOR_ID}
+      HEDERA_OPERATOR_PRIVATE_KEY: ${HEDERA_OPERATOR_PRIVATE_KEY}
+      HEDERA_TREASURY_ID: ${HEDERA_TREASURY_ID}
+      HEDERA_TREASURY_PRIVATE_KEY: ${HEDERA_TREASURY_PRIVATE_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------- Database ----------
+  # PostgreSQL 16 + PostGIS 3.4 (same image as the local-dev compose).
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shamba}
+      POSTGRES_USER: ${POSTGRES_USER:-shamba}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shamba} -d ${POSTGRES_DB:-shamba}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------- Mailpit (catches magic-link emails when prod SMTP isn't configured) ----------
+  # If the operator has prod SMTP, point EMAIL_SERVER_* at it and stop
+  # this service. Mailpit is fine for internal demos and lets the
+  # operator inspect what magic-link emails look like.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8025"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  mailpit_data:

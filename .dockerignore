@@ -1,0 +1,42 @@
+# Build-context excludes used when Docker builds from the monorepo
+# root (apps/web/Dockerfile is the primary consumer). Keeps multi-GB
+# of node_modules + .next caches out of the daemon's COPY stage.
+
+# Dependency directories
+**/node_modules
+node_modules
+
+# Build outputs
+**/.next
+**/.turbo
+**/dist
+**/out
+**/coverage
+
+# Local environment
+.env
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+.env.deploy.local
+
+# VCS + IDE
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Local-only docs build artifacts
+*.log
+
+# Foundry build outputs
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/lib
+
+# Go service local builds
+services/hedera-publisher/publisher
+services/hedera-publisher/bin
