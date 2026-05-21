@@ -1,6 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useCallback, useState } from 'react';
+
+import { PlotDrawWrapper } from '../../../../components/geo/plot-draw-wrapper';
 
 import { submitRegisterPlot, type RegisterPlotState } from './actions';
 
@@ -35,6 +37,23 @@ const SAMPLE_POLYGON = JSON.stringify(
 
 export function RegisterPlotForm({ defaultCountry }: { defaultCountry: string }) {
   const [state, formAction, pending] = useActionState(submitRegisterPlot, initial);
+
+  // `geometry` holds the GeoJSON Polygon JSON string that the server
+  // action receives. Driven by the draw component or, when the user
+  // toggles "Paste GeoJSON instead", by the textarea.
+  // concurrent edit: feat/expand-commodity-list — that PR reshapes the
+  // commodity options block above; keep the map/textarea logic below
+  // intact when merging.
+  const [geometry, setGeometry] = useState<string>('');
+  const [useTextarea, setUseTextarea] = useState<boolean>(false);
+
+  const handleDrawChange = useCallback((geo: string) => {
+    setGeometry(geo);
+  }, []);
+
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setGeometry(e.target.value);
+  }, []);
 
   const issueByPath: Record<string, string> =
     state.status === 'error'
@@ -117,22 +136,45 @@ export function RegisterPlotForm({ defaultCountry }: { defaultCountry: string })
         </Field>
       </div>
 
-      <Field
-        label="Geometry (GeoJSON, WGS 84)"
-        name="geometry"
-        htmlFor="geometry"
-        error={issueByPath.geometry}
-      >
-        <textarea
-          id="geometry"
-          name="geometry"
-          rows={10}
-          required
-          defaultValue={SAMPLE_POLYGON}
-          spellCheck={false}
-          className="block w-full rounded-md border border-soil-300 bg-white px-3 py-2 font-mono text-xs text-soil-900 shadow-sm focus:border-leaf-500 focus:outline-none focus:ring-2 focus:ring-leaf-500"
-        />
-      </Field>
+      <div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-medium text-soil-800">Plot boundary (WGS 84 polygon)</span>
+          <button
+            type="button"
+            onClick={() => setUseTextarea((v) => !v)}
+            className="text-xs font-medium text-leaf-700 underline-offset-2 hover:underline"
+          >
+            {useTextarea ? 'Draw on map instead' : 'Paste GeoJSON instead'}
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-soil-600">
+          Click corners of your field on the map; double-click or hit Finish to close. The
+          deforestation check runs against the 31 December 2020 cut-off.
+        </p>
+
+        <div className="mt-3">
+          {useTextarea ? (
+            <textarea
+              id="geometry-textarea"
+              rows={10}
+              value={geometry || SAMPLE_POLYGON}
+              onChange={handleTextareaChange}
+              spellCheck={false}
+              className="block w-full rounded-md border border-soil-300 bg-white px-3 py-2 font-mono text-xs text-soil-900 shadow-sm focus:border-leaf-500 focus:outline-none focus:ring-2 focus:ring-leaf-500"
+            />
+          ) : (
+            <PlotDrawWrapper onChange={handleDrawChange} initialGeoJson={geometry} />
+          )}
+        </div>
+
+        {/* Server action reads this — same `geometry` field the form has
+            always used, driven by either the map or the textarea. */}
+        <input type="hidden" name="geometry" value={geometry} />
+
+        {issueByPath.geometry ? (
+          <p className="mt-2 text-xs text-red-700">{issueByPath.geometry}</p>
+        ) : null}
+      </div>
 
       <button
         type="submit"
