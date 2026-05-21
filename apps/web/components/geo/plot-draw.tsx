@@ -275,8 +275,7 @@ function parseInitial(raw: string | undefined): LngLat[] {
 function ringAreaHectares(points: LngLat[]): number {
   if (points.length < 3) return 0;
   const R = 6_378_137; // WGS84 equatorial radius, metres
-  const meanLat =
-    (points.reduce((sum, [, lat]) => sum + lat, 0) / points.length) * (Math.PI / 180);
+  const meanLat = (points.reduce((sum, [, lat]) => sum + lat, 0) / points.length) * (Math.PI / 180);
   const cosLat = Math.cos(meanLat);
   // Convert lon/lat degrees to local metres.
   const xy = points.map(([lng, lat]) => {
