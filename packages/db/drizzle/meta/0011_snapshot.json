@@ -142,16 +142,12 @@
         "actors_did_unique": {
           "name": "actors_did_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "did"
-          ]
+          "columns": ["did"]
         },
         "actors_hedera_account_id_unique": {
           "name": "actors_hedera_account_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "hedera_account_id"
-          ]
+          "columns": ["hedera_account_id"]
         }
       },
       "policies": {},
@@ -254,12 +250,8 @@
           "name": "deforestation_checks_plot_id_plots_id_fk",
           "tableFrom": "deforestation_checks",
           "tableTo": "plots",
-          "columnsFrom": [
-            "plot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plot_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -403,12 +395,8 @@
           "name": "plots_owner_actor_id_actors_id_fk",
           "tableFrom": "plots",
           "tableTo": "actors",
-          "columnsFrom": [
-            "owner_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -458,12 +446,8 @@
           "name": "batch_parents_child_batch_id_batches_id_fk",
           "tableFrom": "batch_parents",
           "tableTo": "batches",
-          "columnsFrom": [
-            "child_batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["child_batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -471,12 +455,8 @@
           "name": "batch_parents_parent_batch_id_batches_id_fk",
           "tableFrom": "batch_parents",
           "tableTo": "batches",
-          "columnsFrom": [
-            "parent_batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -484,10 +464,7 @@
       "compositePrimaryKeys": {
         "batch_parents_child_batch_id_parent_batch_id_pk": {
           "name": "batch_parents_child_batch_id_parent_batch_id_pk",
-          "columns": [
-            "child_batch_id",
-            "parent_batch_id"
-          ]
+          "columns": ["child_batch_id", "parent_batch_id"]
         }
       },
       "uniqueConstraints": {},
@@ -534,12 +511,8 @@
           "name": "batch_plots_batch_id_batches_id_fk",
           "tableFrom": "batch_plots",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -547,12 +520,8 @@
           "name": "batch_plots_plot_id_plots_id_fk",
           "tableFrom": "batch_plots",
           "tableTo": "plots",
-          "columnsFrom": [
-            "plot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plot_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -560,10 +529,7 @@
       "compositePrimaryKeys": {
         "batch_plots_batch_id_plot_id_pk": {
           "name": "batch_plots_batch_id_plot_id_pk",
-          "columns": [
-            "batch_id",
-            "plot_id"
-          ]
+          "columns": ["batch_id", "plot_id"]
         }
       },
       "uniqueConstraints": {},
@@ -759,12 +725,8 @@
           "name": "batches_custodian_actor_id_actors_id_fk",
           "tableFrom": "batches",
           "tableTo": "actors",
-          "columnsFrom": [
-            "custodian_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["custodian_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -943,12 +905,8 @@
           "name": "handoffs_batch_id_batches_id_fk",
           "tableFrom": "handoffs",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -956,12 +914,8 @@
           "name": "handoffs_from_actor_id_actors_id_fk",
           "tableFrom": "handoffs",
           "tableTo": "actors",
-          "columnsFrom": [
-            "from_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["from_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -969,12 +923,8 @@
           "name": "handoffs_to_actor_id_actors_id_fk",
           "tableFrom": "handoffs",
           "tableTo": "actors",
-          "columnsFrom": [
-            "to_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["to_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1165,12 +1115,8 @@
           "name": "events_batch_id_batches_id_fk",
           "tableFrom": "events",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1178,12 +1124,8 @@
           "name": "events_plot_id_plots_id_fk",
           "tableFrom": "events",
           "tableTo": "plots",
-          "columnsFrom": [
-            "plot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plot_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1271,12 +1213,8 @@
           "name": "accounts_userId_users_id_fk",
           "tableFrom": "accounts",
           "tableTo": "users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1284,10 +1222,7 @@
       "compositePrimaryKeys": {
         "accounts_provider_providerAccountId_pk": {
           "name": "accounts_provider_providerAccountId_pk",
-          "columns": [
-            "provider",
-            "providerAccountId"
-          ]
+          "columns": ["provider", "providerAccountId"]
         }
       },
       "uniqueConstraints": {},
@@ -1324,12 +1259,8 @@
           "name": "sessions_userId_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1388,12 +1319,8 @@
           "name": "users_actor_id_actors_id_fk",
           "tableFrom": "users",
           "tableTo": "actors",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1403,9 +1330,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1440,10 +1365,7 @@
       "compositePrimaryKeys": {
         "verificationTokens_identifier_token_pk": {
           "name": "verificationTokens_identifier_token_pk",
-          "columns": [
-            "identifier",
-            "token"
-          ]
+          "columns": ["identifier", "token"]
         }
       },
       "uniqueConstraints": {},
@@ -1557,12 +1479,8 @@
           "name": "api_keys_actor_id_actors_id_fk",
           "tableFrom": "api_keys",
           "tableTo": "actors",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1572,9 +1490,7 @@
         "api_keys_key_hash_unique": {
           "name": "api_keys_key_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key_hash"
-          ]
+          "columns": ["key_hash"]
         }
       },
       "policies": {},
@@ -1692,12 +1608,8 @@
           "name": "audit_shares_batch_id_batches_id_fk",
           "tableFrom": "audit_shares",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1705,12 +1617,8 @@
           "name": "audit_shares_operator_actor_id_actors_id_fk",
           "tableFrom": "audit_shares",
           "tableTo": "actors",
-          "columnsFrom": [
-            "operator_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["operator_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1720,9 +1628,7 @@
         "audit_shares_token_hash_unique": {
           "name": "audit_shares_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -1842,12 +1748,8 @@
           "name": "mint_requests_batch_id_batches_id_fk",
           "tableFrom": "mint_requests",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1857,16 +1759,12 @@
         "mint_requests_batch_id_unique": {
           "name": "mint_requests_batch_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "batch_id"
-          ]
+          "columns": ["batch_id"]
         },
         "mint_requests_idempotency_key_unique": {
           "name": "mint_requests_idempotency_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "idempotency_key"
-          ]
+          "columns": ["idempotency_key"]
         }
       },
       "policies": {},
@@ -1979,12 +1877,8 @@
           "name": "legality_attestations_batch_id_batches_id_fk",
           "tableFrom": "legality_attestations",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1992,12 +1886,8 @@
           "name": "legality_attestations_attested_by_actor_id_actors_id_fk",
           "tableFrom": "legality_attestations",
           "tableTo": "actors",
-          "columnsFrom": [
-            "attested_by_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attested_by_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2138,12 +2028,8 @@
           "name": "certifications_batch_id_batches_id_fk",
           "tableFrom": "certifications",
           "tableTo": "batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2151,12 +2037,8 @@
           "name": "certifications_attested_by_actor_id_actors_id_fk",
           "tableFrom": "certifications",
           "tableTo": "actors",
-          "columnsFrom": [
-            "attested_by_actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attested_by_actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2185,36 +2067,17 @@
     "public.batch_status": {
       "name": "batch_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "active",
-        "consumed",
-        "exhausted",
-        "voided"
-      ]
+      "values": ["draft", "active", "consumed", "exhausted", "voided"]
     },
     "public.batch_unit": {
       "name": "batch_unit",
       "schema": "public",
-      "values": [
-        "kg",
-        "head",
-        "tonne",
-        "m3"
-      ]
+      "values": ["kg", "head", "tonne", "m3"]
     },
     "public.commodity": {
       "name": "commodity",
       "schema": "public",
-      "values": [
-        "cattle",
-        "cocoa",
-        "coffee",
-        "oil_palm",
-        "rubber",
-        "soya",
-        "wood"
-      ]
+      "values": ["cattle", "cocoa", "coffee", "oil_palm", "rubber", "soya", "wood"]
     },
     "public.event_type": {
       "name": "event_type",
@@ -2239,33 +2102,17 @@
     "public.handoff_status": {
       "name": "handoff_status",
       "schema": "public",
-      "values": [
-        "proposed",
-        "in_transit",
-        "pending_receipt",
-        "received",
-        "disputed",
-        "cancelled"
-      ]
+      "values": ["proposed", "in_transit", "pending_receipt", "received", "disputed", "cancelled"]
     },
     "public.processing_stage": {
       "name": "processing_stage",
       "schema": "public",
-      "values": [
-        "raw",
-        "primary_processed",
-        "secondary_processed",
-        "finished"
-      ]
+      "values": ["raw", "primary_processed", "secondary_processed", "finished"]
     },
     "public.mint_request_status": {
       "name": "mint_request_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "published",
-        "failed"
-      ]
+      "values": ["pending", "published", "failed"]
     },
     "public.certification_scheme": {
       "name": "certification_scheme",

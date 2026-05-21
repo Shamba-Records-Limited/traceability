@@ -2,7 +2,8 @@
 
 import { useActionState } from 'react';
 
-import { submitOnboarding, type OnboardingState } from './actions';
+import { submitOnboarding } from './actions';
+import { type OnboardingState } from './types';
 
 const initial: OnboardingState = { status: 'idle' };
 
