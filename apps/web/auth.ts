@@ -51,7 +51,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     sessionsTable: schema.sessions,
     verificationTokensTable: schema.verificationTokens,
   }),
-  session: { strategy: 'database' },
+  // JWT (JWE) session strategy: the session cookie is a self-contained
+  // encrypted token, so the Edge-runtime middleware in `proxy.ts` can
+  // decode it without needing database access.
+  //
+  // The alternative ('database') keeps a session row in Postgres and
+  // stores only a token id in the cookie. That works with `auth.ts`
+  // (Node runtime, has the DB adapter) but breaks `proxy.ts` (Edge
+  // runtime, has only the Edge-safe `authConfig`): proxy tries to
+  // decode the cookie as a JWE, gets a random UUID, throws
+  // `JWTSessionError: Invalid Compact JWE`, and every request to a
+  // protected route bounces straight back to /sign-in.
+  //
+  // We still use the Drizzle adapter — it owns users/accounts/
+  // verificationTokens. Only the `sessions` table goes unused under
+  // this strategy, which is fine.
+  //
+  // https://authjs.dev/concepts/session-strategies
+  session: { strategy: 'jwt' },
   providers: [
     Nodemailer({
       server: {
