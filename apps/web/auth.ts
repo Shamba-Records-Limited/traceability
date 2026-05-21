@@ -1,4 +1,5 @@
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
+import { schema } from '@shamba/db';
 import NextAuth from 'next-auth';
 import Nodemailer from 'next-auth/providers/nodemailer';
 
@@ -36,7 +37,20 @@ const emailFrom = process.env.EMAIL_FROM || 'no-reply@shamba.local';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: DrizzleAdapter(db),
+  // Pass our schema tables explicitly. Without the second arg, the
+  // Drizzle adapter falls back to internally-defined tables named
+  // `user`, `account`, `session`, `verificationToken` (singular) —
+  // which is NOT what the schema in `packages/db/src/schema/auth.ts`
+  // creates (we use plural `users`, `accounts`, `sessions`,
+  // `verificationTokens`). Without this binding the adapter issues
+  // `SELECT * FROM "user"` at sign-in and crashes with
+  // `relation "user" does not exist`.
+  adapter: DrizzleAdapter(db, {
+    usersTable: schema.users,
+    accountsTable: schema.accounts,
+    sessionsTable: schema.sessions,
+    verificationTokensTable: schema.verificationTokens,
+  }),
   session: { strategy: 'database' },
   providers: [
     Nodemailer({
