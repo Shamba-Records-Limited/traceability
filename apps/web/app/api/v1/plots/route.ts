@@ -1,10 +1,12 @@
 import { and, desc, eq, lt, or } from 'drizzle-orm';
 
 import { schema } from '@shamba/db';
+import { plotGeometrySchema, type PlotGeometry, commoditySchema } from '@shamba/shared-types';
 
 import { db } from '../../../../lib/db';
 import { requireApiKey } from '../../../../lib/api-auth';
 import { decodeCursor, encodeCursor, parseLimit } from '../../../../lib/api-pagination';
+import { PlotValidationError, registerPlot } from '../../../../lib/plot';
 
 const { plots } = schema;
 
@@ -82,4 +84,135 @@ export async function GET(request: Request): Promise<Response> {
     nextCursor,
     limit,
   });
+}
+
+/**
+ * POST /api/v1/plots
+ *
+ * Register a new plot on the calling key's actor. Thin wrapper around
+ * `registerPlot` in `lib/plot.ts` — same validation, same deforestation
+ * provider run, same on-chain publish lifecycle. The plot owner is
+ * derived from the API key's actor; integrators cannot register plots
+ * for other actors via this endpoint.
+ *
+ * Scopes: `plots:write`.
+ *
+ * Request body:
+ *   {
+ *     country: string,           // ISO 3166-1 alpha-2
+ *     subnational?: string,
+ *     commodities: string[],
+ *     geometry: PlotGeometry     // GeoJSON Point or Polygon (WGS 84)
+ *   }
+ *
+ * Response (201):
+ *   {
+ *     id, ownerActorId, country, commodities, areaHectares,
+ *     deforestationDetected, eventId, eventHash, onChainTopicId
+ *   }
+ *
+ * Errors:
+ *   - 400 `validation_failed` — input failed shape / geometry / commodity validation
+ *   - 401/403 — auth failures (returned by requireApiKey)
+ *   - 500 `internal_error` — unexpected failure (DB / provider)
+ */
+export async function POST(request: Request): Promise<Response> {
+  const auth = await requireApiKey(request, 'plots:write');
+  if (auth.kind === 'response') return auth.response;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(
+      { error: 'invalid_json', message: 'request body must be valid JSON' },
+      { status: 400 },
+    );
+  }
+
+  if (!body || typeof body !== 'object') {
+    return Response.json(
+      { error: 'invalid_body', message: 'request body must be a JSON object' },
+      { status: 400 },
+    );
+  }
+
+  const { country, subnational, commodities, geometry } = body as {
+    country?: unknown;
+    subnational?: unknown;
+    commodities?: unknown;
+    geometry?: unknown;
+  };
+
+  if (typeof country !== 'string') {
+    return Response.json(
+      { error: 'validation_failed', issues: [{ path: 'country', message: 'country is required' }] },
+      { status: 400 },
+    );
+  }
+  if (!Array.isArray(commodities) || commodities.length === 0) {
+    return Response.json(
+      {
+        error: 'validation_failed',
+        issues: [{ path: 'commodities', message: 'commodities must be a non-empty array' }],
+      },
+      { status: 400 },
+    );
+  }
+  // Up-front per-element commodity validation so the caller gets a
+  // 400 with a clear pointer; `registerPlot` will also re-validate.
+  const commodityIssues: Array<{ path: string; message: string }> = [];
+  commodities.forEach((c, idx) => {
+    if (!commoditySchema.safeParse(c).success) {
+      commodityIssues.push({ path: `commodities.${idx}`, message: 'unsupported commodity' });
+    }
+  });
+  if (commodityIssues.length > 0) {
+    return Response.json({ error: 'validation_failed', issues: commodityIssues }, { status: 400 });
+  }
+
+  const geometryParsed = plotGeometrySchema.safeParse(geometry);
+  if (!geometryParsed.success) {
+    return Response.json(
+      {
+        error: 'validation_failed',
+        issues: geometryParsed.error.issues.map((i) => ({
+          path: `geometry.${i.path.join('.')}`,
+          message: i.message,
+        })),
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const plot = await registerPlot({
+      ownerActorId: auth.key.actorId,
+      country,
+      subnational: typeof subnational === 'string' ? subnational : undefined,
+      commodities: commodities as ReadonlyArray<(typeof commodities)[number]>,
+      geometry: geometryParsed.data as PlotGeometry,
+    });
+
+    return Response.json(
+      {
+        id: plot.id,
+        ownerActorId: plot.ownerActorId,
+        country: plot.country,
+        commodities: plot.commodities,
+        areaHectares: plot.areaHectares,
+        deforestationDetected: plot.deforestationDetected,
+        eventId: plot.eventId,
+        eventHash: plot.eventHash,
+        onChainTopicId: plot.onChainTopicId,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    if (error instanceof PlotValidationError) {
+      return Response.json({ error: 'validation_failed', issues: error.issues }, { status: 400 });
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return Response.json({ error: 'internal_error', message }, { status: 500 });
+  }
 }

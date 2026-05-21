@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 
-import { API_SCOPES, type ApiScope } from '../../../lib/api-scopes';
+import { API_SCOPE_GROUPS, type ApiScope } from '../../../lib/api-scopes';
 
 import { submitCreateKey, submitRevokeKey, type CreateState, type RevokeState } from './actions';
 
@@ -19,6 +19,25 @@ interface KeyRow {
 const createInitial: CreateState = { status: 'idle' };
 const revokeInitial: RevokeState = { status: 'idle' };
 
+/**
+ * Short human-readable hint shown next to each scope. Keeps the
+ * dashboard readable for non-developer users without bloating the
+ * scope constant itself (which is a public-API contract).
+ */
+const SCOPE_HINTS: Record<ApiScope, string> = {
+  'plots:read': 'List and inspect plots',
+  'batches:read': 'List and inspect batches',
+  'events:read': 'Read the event stream for a batch',
+  'lineage:read': 'Walk batch lineage (splits / merges)',
+  'dds:read': 'Issue Due Diligence Statements',
+  'handoffs:read': 'View custody-transfer history',
+  'certifications:read': 'View attached certifications',
+  'plots:write': 'Register new plots on this account',
+  'batches:write': 'Create new batches on this account',
+  'handoffs:write': 'Propose / accept / cancel custody transfers',
+  'certifications:write': 'Attach and revoke certifications',
+};
+
 export function ApiKeysClient({ existing }: { existing: ReadonlyArray<KeyRow> }) {
   const [createState, createAction, createPending] = useActionState(submitCreateKey, createInitial);
   const [revokeState, revokeAction, revokePending] = useActionState(submitRevokeKey, revokeInitial);
@@ -32,7 +51,7 @@ export function ApiKeysClient({ existing }: { existing: ReadonlyArray<KeyRow> })
           (1Password, Doppler, etc.). We only store the hash and the first 12 chars; we cannot
           recover the cleartext for you.
         </p>
-        <form action={createAction} className="mt-5 space-y-4">
+        <form action={createAction} className="mt-5 space-y-5">
           <label className="block">
             <span className="text-sm font-medium text-soil-800">Name</span>
             <input
@@ -44,18 +63,56 @@ export function ApiKeysClient({ existing }: { existing: ReadonlyArray<KeyRow> })
               className="mt-1 block h-11 w-full rounded-md border border-soil-300 bg-white px-3 text-soil-900 shadow-sm focus:border-leaf-500 focus:outline-none focus:ring-2 focus:ring-leaf-500"
             />
           </label>
+
           <fieldset>
-            <legend className="text-sm font-medium text-soil-800">Scopes</legend>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {API_SCOPES.map((s) => (
-                <label key={s} className="flex items-center gap-2 text-xs text-soil-800">
+            <legend className="text-sm font-medium text-soil-800">Read scopes</legend>
+            <p className="mt-1 text-xs text-soil-600">
+              Read scopes let the bearer list and inspect resources. Safe to grant broadly.
+            </p>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {API_SCOPE_GROUPS.read.map((s) => (
+                <label
+                  key={s}
+                  className="flex items-start gap-2 rounded-md border border-soil-200 bg-soil-50 px-3 py-2 text-xs text-soil-800"
+                >
                   <input
                     type="checkbox"
                     name="scopes"
                     value={s}
-                    className="h-4 w-4 rounded border-soil-300 text-leaf-600 focus:ring-leaf-500"
+                    className="mt-0.5 h-4 w-4 rounded border-soil-300 text-leaf-600 focus:ring-leaf-500"
                   />
-                  <code className="font-mono">{s}</code>
+                  <span className="min-w-0">
+                    <code className="block font-mono font-medium">{s}</code>
+                    <span className="block text-soil-600">{SCOPE_HINTS[s]}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="text-sm font-medium text-soil-800">Write scopes</legend>
+            <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <strong className="font-semibold">Warning:</strong> Write scopes let API clients
+              create / modify resources on your account. Only grant write scopes to integrations you
+              trust to act on your behalf; rotate or revoke the key the moment that trust ends.
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {API_SCOPE_GROUPS.write.map((s) => (
+                <label
+                  key={s}
+                  className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2 text-xs text-soil-800"
+                >
+                  <input
+                    type="checkbox"
+                    name="scopes"
+                    value={s}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="min-w-0">
+                    <code className="block font-mono font-medium">{s}</code>
+                    <span className="block text-soil-600">{SCOPE_HINTS[s]}</span>
+                  </span>
                 </label>
               ))}
             </div>
